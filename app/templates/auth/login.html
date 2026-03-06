@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Sign In — ConsolidaTrack{% endblock %}
+{% block content_unauth %}
+<div style="width:100%;max-width:420px;padding:20px">
+  <div class="card" style="border:none;border-radius:16px;box-shadow:0 25px 50px rgba(0,0,0,.25)">
+    <div class="card-body p-4 p-md-5">
+      <div class="text-center mb-4">
+        <div style="width:56px;height:56px;background:var(--accent);border-radius:14px;display:inline-flex;align-items:center;justify-content:center;font-size:24px;color:#fff;margin-bottom:12px">
+          <i class="bi bi-box-seam"></i>
+        </div>
+        <h4 style="font-weight:700;color:var(--text-1)">ConsolidaTrack</h4>
+        <p style="color:var(--text-3);font-size:.88rem">Maritime Consolidation System</p>
+      </div>
+      {% with messages = get_flashed_messages(with_categories=true) %}{% if messages %}{% for category, message in messages %}
+      <div class="alert alert-{{ category }} py-2" style="font-size:.85rem">{{ message }}</div>
+      {% endfor %}{% endif %}{% endwith %}
+      <form method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="mb-3">
+          <label class="form-label">Email</label>
+          <div class="input-group">
+            <span class="input-group-text" style="background:#f8fafc;border-color:var(--border)"><i class="bi bi-envelope" style="color:var(--text-3)"></i></span>
+            <input type="email" name="email" class="form-control" placeholder="admin@consolidatrack.com" required autofocus>
+          </div>
+        </div>
+        <div class="mb-4">
+          <label class="form-label">Password</label>
+          <div class="input-group">
+            <span class="input-group-text" style="background:#f8fafc;border-color:var(--border)"><i class="bi bi-lock" style="color:var(--text-3)"></i></span>
+            <input type="password" name="password" class="form-control" placeholder="••••••••" required>
+          </div>
+        </div>
+        <button type="submit" class="btn btn-primary w-100 py-2" style="font-weight:600"><i class="bi bi-box-arrow-in-right me-2"></i>Sign In</button>
+      </form>
+    </div>
+  </div>
+  <p class="text-center mt-3" style="color:rgba(255,255,255,.4);font-size:.75rem">&copy; 2025 ConsolidaTrack — Maritime Logistics Platform</p>
+</div>
+{% endblock %}

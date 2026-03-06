@@ -1,0 +1,251 @@
+{% extends "base.html" %}
+{% block title %}Reports — ConsolidaTrack{% endblock %}
+{% block page_title %}Reports & Documents{% endblock %}
+
+{% block extra_head %}
+<style>
+  .reports-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:18px;margin-top:6px}
+  .report-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;transition:transform .15s,box-shadow .15s}
+  .report-card:hover{transform:translateY(-3px);box-shadow:0 8px 24px rgba(0,0,0,.08)}
+  .rc-header{padding:16px 20px;display:flex;align-items:center;gap:14px}
+  .rc-icon{width:48px;height:48px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:1.3rem;color:#fff;flex-shrink:0}
+  .rc-title{font-size:.95rem;font-weight:700;color:var(--text-1)}
+  .rc-desc{font-size:.75rem;color:var(--text-3);margin-top:2px;line-height:1.4}
+  .rc-body{padding:0 20px 16px}
+  .rc-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+  .rc-actions .btn{font-size:.75rem;padding:6px 14px;border-radius:8px;display:inline-flex;align-items:center;gap:5px}
+  .btn-pdf{background:#dc2626;color:#fff;border:none}
+  .btn-pdf:hover{background:#b91c1c;color:#fff}
+  .btn-csv{background:#16a34a;color:#fff;border:none}
+  .btn-csv:hover{background:#15803d;color:#fff}
+  .btn-wa{background:#25d366;color:#fff;border:none}
+  .btn-wa:hover{background:#1da851;color:#fff}
+  .btn-print{background:#6366f1;color:#fff;border:none}
+  .btn-print:hover{background:#4f46e5;color:#fff}
+  .section-title{font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text-3);margin:24px 0 12px;padding-bottom:6px;border-bottom:2px solid var(--border)}
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- ═══ CONTAINER REPORTS ═══ -->
+<div class="section-title"><i class="bi bi-box-seam me-2"></i>Container Reports</div>
+<div class="reports-grid">
+
+  <!-- Packing List -->
+  <div class="report-card">
+    <div class="rc-header">
+      <div class="rc-icon" style="background:linear-gradient(135deg,#1e293b,#334155)"><i class="bi bi-list-check"></i></div>
+      <div><div class="rc-title">Packing List</div>
+        <div class="rc-desc">Complete cargo detail per container: WRs, quantities, CBM, KG with capacity usage.</div></div>
+    </div>
+    <div class="rc-body">
+      <select id="packingCnt" class="form-select form-select-sm" style="font-size:.82rem;border-radius:8px">
+        {% for c in containers %}<option value="{{ c.id }}">{{ c.container_number or 'TBD' }} ({{ c.warehouse.code }}) {{ c.pol or '?' }}→{{ c.pod or '?' }}</option>{% endfor %}
+      </select>
+      <div class="rc-actions">
+        <a id="packingPdf" href="#" class="btn btn-pdf" target="_blank"><i class="bi bi-file-pdf"></i> PDF</a>
+        <a id="packingCsv" href="#" class="btn btn-csv"><i class="bi bi-filetype-csv"></i> CSV</a>
+        <button class="btn btn-print" onclick="printReport(document.getElementById('packingPdf').href)"><i class="bi bi-printer"></i> Print</button>
+        <button class="btn btn-wa" onclick="shareWhatsApp('Packing List', document.getElementById('packingPdf').href)"><i class="bi bi-whatsapp"></i> Share</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Shipping Instructions -->
+  <div class="report-card">
+    <div class="rc-header">
+      <div class="rc-icon" style="background:linear-gradient(135deg,#0f766e,#14b8a6)"><i class="bi bi-send"></i></div>
+      <div><div class="rc-title">Shipping Instructions</div>
+        <div class="rc-desc">Formal shipping document with shipper/consignee, voyage, cargo and signature lines.</div></div>
+    </div>
+    <div class="rc-body">
+      <select id="shipCnt" class="form-select form-select-sm" style="font-size:.82rem;border-radius:8px">
+        {% for c in containers %}<option value="{{ c.id }}">{{ c.container_number or 'TBD' }} | {{ c.carrier or '-' }} | {{ c.pol or '?' }}→{{ c.pod or '?' }}</option>{% endfor %}
+      </select>
+      <div class="rc-actions">
+        <a id="shipPdf" href="#" class="btn btn-pdf" target="_blank"><i class="bi bi-file-pdf"></i> PDF</a>
+        <button class="btn btn-print" onclick="printReport(document.getElementById('shipPdf').href)"><i class="bi bi-printer"></i> Print</button>
+        <button class="btn btn-wa" onclick="shareWhatsApp('Shipping Instructions', document.getElementById('shipPdf').href)"><i class="bi bi-whatsapp"></i> Share</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Container Manifest -->
+  <div class="report-card">
+    <div class="rc-header">
+      <div class="rc-icon" style="background:linear-gradient(135deg,#7c3aed,#8b5cf6)"><i class="bi bi-card-list"></i></div>
+      <div><div class="rc-title">Container Manifest</div>
+        <div class="rc-desc">Simplified cargo manifest per container for customs and carrier reference.</div></div>
+    </div>
+    <div class="rc-body">
+      <select id="manifestCnt" class="form-select form-select-sm" style="font-size:.82rem;border-radius:8px">
+        {% for c in containers %}<option value="{{ c.id }}">{{ c.container_number or 'TBD' }} ({{ c.warehouse.code }})</option>{% endfor %}
+      </select>
+      <div class="rc-actions">
+        <a id="manifestPdf" href="#" class="btn btn-pdf" target="_blank"><i class="bi bi-file-pdf"></i> PDF</a>
+        <a id="manifestCsv" href="#" class="btn btn-csv"><i class="bi bi-filetype-csv"></i> CSV</a>
+        <button class="btn btn-print" onclick="printReport(document.getElementById('manifestPdf').href)"><i class="bi bi-printer"></i> Print</button>
+        <button class="btn btn-wa" onclick="shareWhatsApp('Container Manifest', document.getElementById('manifestPdf').href)"><i class="bi bi-whatsapp"></i> Share</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ═══ WAREHOUSE & CUSTOMER ═══ -->
+<div class="section-title"><i class="bi bi-building me-2"></i>Warehouse & Customer Reports</div>
+<div class="reports-grid">
+
+  <!-- Warehouse Stock -->
+  <div class="report-card">
+    <div class="rc-header">
+      <div class="rc-icon" style="background:linear-gradient(135deg,#ea580c,#f97316)"><i class="bi bi-box-seam-fill"></i></div>
+      <div><div class="rc-title">Warehouse Stock Report</div>
+        <div class="rc-desc">Available inventory per warehouse: WRs, CBM, KG with customer breakdown.</div></div>
+    </div>
+    <div class="rc-body">
+      <select id="stockWh" class="form-select form-select-sm" style="font-size:.82rem;border-radius:8px">
+        <option value="">All Warehouses</option>
+        {% for wh in warehouses %}<option value="{{ wh.id }}">{{ wh.name }} ({{ wh.code }})</option>{% endfor %}
+      </select>
+      <div class="rc-actions">
+        <a id="stockPdf" href="{{ url_for('reports.stock_pdf') }}" class="btn btn-pdf" target="_blank"><i class="bi bi-file-pdf"></i> PDF</a>
+        <a id="stockCsv" href="{{ url_for('reports.stock_csv') }}" class="btn btn-csv"><i class="bi bi-filetype-csv"></i> CSV</a>
+        <button class="btn btn-print" onclick="printReport(document.getElementById('stockPdf').href)"><i class="bi bi-printer"></i> Print</button>
+        <button class="btn btn-wa" onclick="shareWhatsApp('Warehouse Stock', document.getElementById('stockPdf').href)"><i class="bi bi-whatsapp"></i> Share</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Customer Statement -->
+  <div class="report-card">
+    <div class="rc-header">
+      <div class="rc-icon" style="background:linear-gradient(135deg,#0284c7,#38bdf8)"><i class="bi bi-person-lines-fill"></i></div>
+      <div><div class="rc-title">Customer Statement</div>
+        <div class="rc-desc">Full WR history per customer: received, loaded, available stock and status.</div></div>
+    </div>
+    <div class="rc-body">
+      <select id="custSelect" class="form-select form-select-sm" style="font-size:.82rem;border-radius:8px">
+        {% for c in customers %}<option value="{{ c.id }}">{{ c.code }} — {{ c.name }}</option>{% endfor %}
+      </select>
+      <div class="rc-actions">
+        <a id="custPdf" href="#" class="btn btn-pdf" target="_blank"><i class="bi bi-file-pdf"></i> PDF</a>
+        <a id="custCsv" href="#" class="btn btn-csv"><i class="bi bi-filetype-csv"></i> CSV</a>
+        <button class="btn btn-print" onclick="printReport(document.getElementById('custPdf').href)"><i class="bi bi-printer"></i> Print</button>
+        <button class="btn btn-wa" onclick="shareWhatsApp('Customer Statement', document.getElementById('custPdf').href)"><i class="bi bi-whatsapp"></i> Share</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ═══ FINANCE ═══ -->
+<div class="section-title"><i class="bi bi-cash-stack me-2"></i>Financial Reports</div>
+<div class="reports-grid">
+
+  <!-- Financial Summary -->
+  <div class="report-card">
+    <div class="rc-header">
+      <div class="rc-icon" style="background:linear-gradient(135deg,#be185d,#ec4899)"><i class="bi bi-graph-up-arrow"></i></div>
+      <div><div class="rc-title">Financial Summary</div>
+        <div class="rc-desc">All freight invoices with amounts, payments, balances and status overview.</div></div>
+    </div>
+    <div class="rc-body">
+      <div class="rc-actions">
+        <a href="{{ url_for('reports.finance_pdf') }}" class="btn btn-pdf" target="_blank" id="finPdf"><i class="bi bi-file-pdf"></i> PDF</a>
+        <a href="{{ url_for('reports.finance_csv') }}" class="btn btn-csv"><i class="bi bi-filetype-csv"></i> CSV</a>
+        <button class="btn btn-print" onclick="printReport('{{ url_for('reports.finance_pdf') }}')"><i class="bi bi-printer"></i> Print</button>
+        <button class="btn btn-wa" onclick="shareWhatsApp('Financial Summary', '{{ url_for('reports.finance_pdf', _external=True) }}')"><i class="bi bi-whatsapp"></i> Share</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tracking -->
+  <div class="report-card">
+    <div class="rc-header">
+      <div class="rc-icon" style="background:linear-gradient(135deg,#4338ca,#6366f1)"><i class="bi bi-geo-alt-fill"></i></div>
+      <div><div class="rc-title">Tracking Report</div>
+        <div class="rc-desc">Container tracking history with positions, timestamps and ETA updates.</div></div>
+    </div>
+    <div class="rc-body">
+      <select id="trackCnt" class="form-select form-select-sm" style="font-size:.82rem;border-radius:8px">
+        {% for c in containers %}<option value="{{ c.id }}">{{ c.container_number or 'TBD' }} | {{ c.status.value }}</option>{% endfor %}
+      </select>
+      <div class="rc-actions">
+        <a id="trackCsv" href="#" class="btn btn-csv"><i class="bi bi-filetype-csv"></i> CSV</a>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+// Dynamic link updater
+function linkUpdater(selectId, links) {
+    var sel = document.getElementById(selectId);
+    if (!sel) return;
+    function update() {
+        links.forEach(function(l) {
+            var el = document.getElementById(l.id);
+            if (el) el.href = l.tpl.replace('__ID__', sel.value);
+        });
+    }
+    sel.addEventListener('change', update);
+    update();
+}
+
+// Packing List
+linkUpdater('packingCnt', [
+    {id:'packingPdf', tpl:'{{ url_for("reports.packing_list_pdf", container_id=0) }}'.replace('0','__ID__')},
+    {id:'packingCsv', tpl:'{{ url_for("reports.manifest_csv", container_id=0) }}'.replace('0','__ID__')},
+]);
+
+// Shipping Instructions
+linkUpdater('shipCnt', [
+    {id:'shipPdf', tpl:'{{ url_for("reports.shipping_instructions_pdf", container_id=0) }}'.replace('0','__ID__')},
+]);
+
+// Container Manifest
+linkUpdater('manifestCnt', [
+    {id:'manifestPdf', tpl:'{{ url_for("reports.manifest_pdf", container_id=0) }}'.replace('0','__ID__')},
+    {id:'manifestCsv', tpl:'{{ url_for("reports.manifest_csv", container_id=0) }}'.replace('0','__ID__')},
+]);
+
+// Stock (warehouse filter)
+document.getElementById('stockWh').addEventListener('change', function() {
+    var wh = this.value;
+    var base_pdf = '{{ url_for("reports.stock_pdf") }}';
+    var base_csv = '{{ url_for("reports.stock_csv") }}';
+    document.getElementById('stockPdf').href = wh ? base_pdf + '?warehouse_id=' + wh : base_pdf;
+    document.getElementById('stockCsv').href = wh ? base_csv + '?warehouse_id=' + wh : base_csv;
+});
+
+// Customer Statement
+linkUpdater('custSelect', [
+    {id:'custPdf', tpl:'{{ url_for("reports.customer_statement_pdf", customer_id=0) }}'.replace('0','__ID__')},
+    {id:'custCsv', tpl:'{{ url_for("reports.customer_status_csv", customer_id=0) }}'.replace('0','__ID__')},
+]);
+
+// Tracking
+linkUpdater('trackCnt', [
+    {id:'trackCsv', tpl:'{{ url_for("reports.tracking_csv", container_id=0) }}'.replace('0','__ID__')},
+]);
+
+// Print function — opens PDF in new window and triggers print
+function printReport(url) {
+    var win = window.open(url, '_blank');
+    win.addEventListener('load', function() {
+        setTimeout(function() { win.print(); }, 500);
+    });
+}
+
+// WhatsApp share — opens WhatsApp with message + link
+function shareWhatsApp(reportName, url) {
+    var fullUrl = window.location.origin + url;
+    var msg = encodeURIComponent('*ConsolidaTrack Report*\n' + reportName + '\n' + fullUrl);
+    window.open('https://wa.me/?text=' + msg, '_blank');
+}
+</script>
+{% endblock %}

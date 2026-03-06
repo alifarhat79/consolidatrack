@@ -1,0 +1,276 @@
+{% extends "base.html" %}
+{% block title %}{{ container.container_number or 'Container' }} — ConsolidaTrack{% endblock %}
+{% block page_title %}
+<a href="{{ url_for('containers.container_list') }}" style="color:var(--text-3);text-decoration:none"><i class="bi bi-box-seam me-1"></i>Containers</a>
+<i class="bi bi-chevron-right mx-2" style="font-size:.7rem;color:var(--text-3)"></i>
+<span style="color:var(--accent);font-weight:700">{{ container.container_number or 'TBD' }}</span>
+{% endblock %}
+{% block topbar_actions %}
+{% if container.is_editable %}
+<a href="{{ url_for('containers.container_loading', container_id=container.id) }}" class="btn btn-warning btn-sm"><i class="bi bi-box-arrow-in-down me-1"></i>Loading</a>
+<a href="{{ url_for('containers.container_edit', container_id=container.id) }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-pencil me-1"></i>Edit</a>
+{% endif %}
+<a href="{{ url_for('containers.container_gallery', container_id=container.id) }}" class="btn btn-outline-info btn-sm"><i class="bi bi-camera me-1"></i>Gallery ({{ photos|length }})</a>
+<a href="{{ url_for('reports.packing_list_pdf', container_id=container.id) }}" class="btn btn-outline-danger btn-sm" target="_blank"><i class="bi bi-file-pdf me-1"></i>PDF</a>
+{% endblock %}
+
+{% block extra_head %}
+<style>
+  .cnt-header{background:linear-gradient(135deg,#1e293b,#334155);border-radius:14px;padding:24px 28px;color:#fff;margin-bottom:20px}
+  .cnt-header .cnt-num{font-size:1.6rem;font-weight:800;letter-spacing:2px}
+  .cnt-header .cnt-sub{font-size:.82rem;opacity:.6;margin-top:4px}
+  .cnt-stats{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-top:16px}
+  .cnt-stat{text-align:center;background:rgba(255,255,255,.08);border-radius:10px;padding:10px 6px}
+  .cnt-stat .sv{font-size:1.1rem;font-weight:700}
+  .cnt-stat .sl{font-size:.62rem;text-transform:uppercase;opacity:.5;letter-spacing:.5px}
+
+  /* Timeline */
+  .timeline{position:relative;padding:10px 0 10px 30px}
+  .timeline::before{content:'';position:absolute;left:11px;top:0;bottom:0;width:2px;background:var(--border)}
+  .tl-item{position:relative;margin-bottom:16px}
+  .tl-item:last-child{margin-bottom:0}
+  .tl-dot{position:absolute;left:-26px;top:4px;width:14px;height:14px;border-radius:50%;border:2px solid #fff;z-index:1}
+  .tl-dot.planned{background:#94a3b8}
+  .tl-dot.loading{background:#f59e0b}
+  .tl-dot.closed{background:#6b7280}
+  .tl-dot.shipped{background:#3b82f6}
+  .tl-dot.arrived{background:#10b981}
+  .tl-dot.unloaded{background:#8b5cf6}
+  .tl-dot.active{box-shadow:0 0 0 4px rgba(59,130,246,.3);animation:pulse 2s infinite}
+  @keyframes pulse{0%,100%{box-shadow:0 0 0 4px rgba(59,130,246,.3)}50%{box-shadow:0 0 0 8px rgba(59,130,246,.1)}}
+  .tl-content{font-size:.84rem}
+  .tl-status{font-weight:700;color:var(--text-1)}
+  .tl-time{font-size:.72rem;color:var(--text-3)}
+  .tl-notes{font-size:.75rem;color:var(--text-2);margin-top:2px}
+  .tl-user{font-size:.68rem;color:var(--accent)}
+
+  /* Alerts */
+  .alert-card{border-radius:10px;padding:10px 16px;margin-bottom:8px;display:flex;align-items:center;gap:10px;font-size:.84rem}
+  .alert-card i{font-size:1rem;flex-shrink:0}
+  .alert-danger{background:#fef2f2;color:#991b1b;border-left:3px solid #ef4444}
+  .alert-warning{background:#fefce8;color:#854d0e;border-left:3px solid #f59e0b}
+  .alert-info{background:#eff6ff;color:#1e40af;border-left:3px solid #3b82f6}
+
+  /* Checklist */
+  .check-item{display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid #f1f5f9;font-size:.84rem;transition:background .15s}
+  .check-item:hover{background:#f8fafc}
+  .check-item:last-child{border:none}
+  .check-item.done{opacity:.5}
+  .check-item.done .ci-name{text-decoration:line-through}
+  .ci-name{flex:1;color:var(--text-1)}
+  .ci-meta{font-size:.68rem;color:var(--text-3);white-space:nowrap}
+  .check-progress{height:6px;background:#e2e8f0;border-radius:3px;overflow:hidden;margin-bottom:10px}
+  .check-progress .fill{height:100%;border-radius:3px;transition:width .3s}
+
+  .section-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:16px}
+  .section-card .sc-header{padding:14px 20px;font-size:.82rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text-2);border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
+  .section-card .sc-body{padding:16px 20px}
+  .capacity-bar{height:10px;background:#e2e8f0;border-radius:5px;overflow:hidden;margin-bottom:6px}
+  .capacity-bar .fill{height:100%;border-radius:5px;transition:width .3s}
+  .fill.low{background:linear-gradient(90deg,#10b981,#34d399)}
+  .fill.mid{background:linear-gradient(90deg,#f59e0b,#fbbf24)}
+  .fill.high{background:linear-gradient(90deg,#ef4444,#f87171)}
+</style>
+{% endblock %}
+
+{% block content %}
+{% set max_cbm = 33 if container.container_type == '20' else (76 if container.container_type == '40HQ' else 67) %}
+{% set pct = ((container.total_cbm|float / max_cbm) * 100) if max_cbm > 0 else 0 %}
+{% set pct = [pct, 100]|min %}
+
+<!-- Header -->
+<div class="cnt-header">
+  <div class="d-flex justify-content-between align-items-start">
+    <div>
+      <div class="cnt-num">{{ container.container_number or 'TBD' }}</div>
+      <div class="cnt-sub">{{ container.container_type or '?' }} | {{ container.carrier or '-' }} | {{ container.pol or '?' }} → {{ container.pod or '?' }}</div>
+    </div>
+    <span class="badge-status badge-{{ container.status.value|lower }}" style="font-size:.88rem;padding:6px 16px">{{ container.status.value }}</span>
+  </div>
+  <div class="cnt-stats">
+    <div class="cnt-stat"><div class="sv">{{ container.load_lines.count() }}</div><div class="sl">Lines</div></div>
+    <div class="cnt-stat"><div class="sv">{{ "%.2f"|format(container.total_cbm|float) }}</div><div class="sl">CBM</div></div>
+    <div class="cnt-stat"><div class="sv">{{ "%.0f"|format(container.total_kg|float) }}</div><div class="sl">KG</div></div>
+    <div class="cnt-stat"><div class="sv">{{ container.etd or '-' }}</div><div class="sl">ETD</div></div>
+    <div class="cnt-stat"><div class="sv">{{ container.eta or '-' }}</div><div class="sl">ETA</div></div>
+  </div>
+  <div style="margin-top:14px">
+    <div style="display:flex;justify-content:space-between;font-size:.72rem;opacity:.5;margin-bottom:4px"><span>Capacity</span><span>{{ "%.1f"|format(container.total_cbm|float) }} / {{ max_cbm }} m³ ({{ "%.0f"|format(pct) }}%)</span></div>
+    <div class="capacity-bar"><div class="fill {% if pct < 60 %}low{% elif pct < 85 %}mid{% else %}high{% endif %}" style="width:{{ "%.1f"|format(pct) }}%"></div></div>
+  </div>
+</div>
+
+<!-- Alerts -->
+{% if alerts %}
+<div style="margin-bottom:18px">
+  {% for a in alerts %}
+  <div class="alert-card alert-{{ a.type }}"><i class="bi bi-{{ a.icon }}"></i>{{ a.msg }}</div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<div class="row">
+  <!-- LEFT COLUMN -->
+  <div class="col-md-7">
+    <!-- Loaded Cargo -->
+    <div class="section-card">
+      <div class="sc-header"><span><i class="bi bi-layers me-1"></i>Loaded Cargo</span><span style="color:var(--accent)">{{ load_lines|length }} lines</span></div>
+      <div class="sc-body p-0">
+        <table class="table table-hover mb-0" style="font-size:.84rem">
+          <thead><tr><th>WR#</th><th>Customer</th><th>Commodity</th><th class="text-end">Qty</th><th class="text-end">CBM</th><th class="text-end">KG</th></tr></thead>
+          <tbody>
+            {% for line in load_lines %}
+            <tr>
+              <td><a href="{{ url_for('wr.wr_detail', wr_id=line.warehouse_receipt.id) }}" style="color:var(--accent);font-weight:600;text-decoration:none">{{ line.warehouse_receipt.wr_number }}</a></td>
+              <td>{{ line.warehouse_receipt.customer.name }}</td>
+              <td>{{ line.warehouse_receipt.commodity[:25] }}</td>
+              <td class="text-end">{{ line.qty_loaded }}</td>
+              <td class="text-end">{{ "%.4f"|format(line.cbm_loaded) }}</td>
+              <td class="text-end">{{ "%.2f"|format(line.kg_loaded) }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="6" class="text-center py-3" style="color:var(--text-3)">No cargo loaded</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Checklist -->
+    <div class="section-card">
+      <div class="sc-header">
+        <span><i class="bi bi-list-check me-1"></i>Checklist</span>
+        <span style="font-size:.75rem;color:{% if checked_count == total_checks and total_checks > 0 %}var(--success){% else %}var(--text-3){% endif %}">{{ checked_count }}/{{ total_checks }}</span>
+      </div>
+      <div class="sc-body">
+        {% if total_checks > 0 %}
+        <div class="check-progress">
+          <div class="fill {% if checked_count/total_checks < 0.5 %}low{% elif checked_count/total_checks < 0.8 %}mid{% else %}high{% endif %}" style="width:{{ (checked_count/total_checks*100) if total_checks > 0 else 0 }}%;background:{% if checked_count == total_checks %}#10b981{% elif checked_count/total_checks > 0.5 %}#f59e0b{% else %}#3b82f6{% endif %}"></div>
+        </div>
+        {% endif %}
+        {% for item in checklist %}
+        <div class="check-item {% if item.is_checked %}done{% endif %}">
+          <form method="post" action="{{ url_for('containers.toggle_checklist', container_id=container.id, item_id=item.id) }}" style="display:inline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" style="background:none;border:none;cursor:pointer;font-size:1.1rem;padding:0;line-height:1;color:{% if item.is_checked %}var(--success){% else %}var(--text-3){% endif %}">
+              <i class="bi bi-{% if item.is_checked %}check-circle-fill{% else %}circle{% endif %}"></i>
+            </button>
+          </form>
+          <span class="ci-name">{{ item.item_name }}</span>
+          {% if item.is_checked and item.checked_at %}
+          <span class="ci-meta">{{ item.checked_at.strftime('%d/%m %H:%M') }}{% if item.user %} · {{ item.user.full_name or item.user.username }}{% endif %}</span>
+          {% endif %}
+          <form method="post" action="{{ url_for('containers.delete_checklist_item', container_id=container.id, item_id=item.id) }}" style="display:inline" onsubmit="return confirm('Remove?')">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" style="background:none;border:none;cursor:pointer;color:var(--text-3);font-size:.75rem;opacity:.3;padding:0" onmouseover="this.style.opacity=1;this.style.color='var(--danger)'" onmouseout="this.style.opacity=.3;this.style.color='var(--text-3)'"><i class="bi bi-trash"></i></button>
+          </form>
+        </div>
+        {% endfor %}
+        <!-- Add custom item -->
+        <form method="post" action="{{ url_for('containers.add_checklist_item', container_id=container.id) }}" class="d-flex gap-2 mt-3">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="text" name="item_name" class="form-control form-control-sm" placeholder="Add custom checklist item..." required style="font-size:.82rem">
+          <button type="submit" class="btn btn-sm btn-outline-primary" style="white-space:nowrap"><i class="bi bi-plus-lg"></i></button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Container Info -->
+    <div class="section-card">
+      <div class="sc-header"><i class="bi bi-info-circle me-1"></i>Container Info</div>
+      <div class="sc-body" style="font-size:.86rem">
+        <div class="row g-2">
+          <div class="col-6"><span style="color:var(--text-3);font-size:.72rem;font-weight:600;text-transform:uppercase">Warehouse</span><div>{{ container.warehouse.name }} ({{ container.warehouse.code }})</div></div>
+          <div class="col-6"><span style="color:var(--text-3);font-size:.72rem;font-weight:600;text-transform:uppercase">Booking</span><div>{{ container.booking_number or '-' }}</div></div>
+          <div class="col-6"><span style="color:var(--text-3);font-size:.72rem;font-weight:600;text-transform:uppercase">Carrier</span><div>{{ container.carrier or '-' }}</div></div>
+          <div class="col-6"><span style="color:var(--text-3);font-size:.72rem;font-weight:600;text-transform:uppercase">Forwarder</span><div>{{ container.forwarder or '-' }}</div></div>
+          {% if container.notes %}<div class="col-12"><span style="color:var(--text-3);font-size:.72rem;font-weight:600;text-transform:uppercase">Notes</span><div>{{ container.notes }}</div></div>{% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT COLUMN -->
+  <div class="col-md-5">
+    <!-- Status Transition -->
+    {% set transitions = container.VALID_TRANSITIONS.get(container.status, []) %}
+    {% if transitions %}
+    <div class="section-card">
+      <div class="sc-header"><i class="bi bi-arrow-right-circle me-1"></i>Change Status</div>
+      <div class="sc-body">
+        <form method="post" action="{{ url_for('containers.add_event', container_id=container.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <select name="new_status" class="form-select form-select-sm mb-2">
+            {% for t in transitions %}<option value="{{ t.value }}">→ {{ t.value }}</option>{% endfor %}
+          </select>
+          <div class="row g-2 mb-2">
+            <div class="col"><input type="date" name="etd" class="form-control form-control-sm" placeholder="ETD" value="{{ container.etd or '' }}"></div>
+            <div class="col"><input type="date" name="eta" class="form-control form-control-sm" placeholder="ETA" value="{{ container.eta or '' }}"></div>
+          </div>
+          <input type="text" name="notes" class="form-control form-control-sm mb-2" placeholder="Notes (optional)...">
+          <button class="btn btn-sm btn-primary w-100"><i class="bi bi-arrow-right-circle me-1"></i>Apply</button>
+        </form>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Visual Timeline -->
+    <div class="section-card">
+      <div class="sc-header"><i class="bi bi-clock-history me-1"></i>Status Timeline</div>
+      <div class="sc-body">
+        {% set all_statuses = ['PLANNED', 'LOADING', 'CLOSED', 'SHIPPED', 'ARRIVED', 'UNLOADED'] %}
+        {% set current_idx = all_statuses.index(container.status.value) if container.status.value in all_statuses else -1 %}
+
+        <!-- Progress dots -->
+        <div style="display:flex;align-items:center;gap:0;margin-bottom:20px;padding:0 10px">
+          {% for s in all_statuses %}
+          {% set s_idx = loop.index0 %}
+          <div style="flex:0 0 auto;text-align:center;position:relative">
+            <div style="width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.6rem;font-weight:700;color:#fff;
+              background:{% if s_idx < current_idx %}#10b981{% elif s_idx == current_idx %}#3b82f6{% else %}#e2e8f0{% endif %};
+              {% if s_idx == current_idx %}box-shadow:0 0 0 4px rgba(59,130,246,.3){% endif %}">
+              {% if s_idx < current_idx %}<i class="bi bi-check"></i>{% elif s_idx == current_idx %}<i class="bi bi-geo-alt-fill"></i>{% else %}{{ s_idx + 1 }}{% endif %}
+            </div>
+            <div style="font-size:.55rem;color:{% if s_idx <= current_idx %}var(--text-1){% else %}var(--text-3){% endif %};font-weight:{% if s_idx == current_idx %}700{% else %}400{% endif %};margin-top:4px;white-space:nowrap">{{ s[:4] }}</div>
+          </div>
+          {% if not loop.last %}
+          <div style="flex:1;height:2px;background:{% if s_idx < current_idx %}#10b981{% else %}#e2e8f0{% endif %};margin:0 2px;margin-bottom:18px"></div>
+          {% endif %}
+          {% endfor %}
+        </div>
+
+        <!-- Event log -->
+        <div class="timeline">
+          {% for ev in events %}
+          <div class="tl-item">
+            <div class="tl-dot {{ ev.event_type.value|lower }} {% if loop.last %}active{% endif %}"></div>
+            <div class="tl-content">
+              <span class="tl-status">{{ ev.event_type.value }}</span>
+              <div class="tl-time">{{ ev.event_time.strftime('%d/%m/%Y %H:%M') }}</div>
+              {% if ev.notes %}<div class="tl-notes">{{ ev.notes }}</div>{% endif %}
+              {% if ev.user %}<div class="tl-user"><i class="bi bi-person me-1"></i>{{ ev.user.full_name or ev.user.username }}</div>{% endif %}
+            </div>
+          </div>
+          {% else %}
+          <div style="font-size:.84rem;color:var(--text-3)">No events recorded yet.</div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Quick Links -->
+    <div class="section-card">
+      <div class="sc-header"><i class="bi bi-link-45deg me-1"></i>Quick Links</div>
+      <div class="sc-body">
+        <div class="d-flex flex-wrap gap-2">
+          <a href="{{ url_for('containers.container_gallery', container_id=container.id) }}" class="btn btn-sm btn-outline-info"><i class="bi bi-camera me-1"></i>Gallery ({{ photos|length }})</a>
+          <a href="{{ url_for('reports.packing_list_pdf', container_id=container.id) }}" class="btn btn-sm btn-outline-danger" target="_blank"><i class="bi bi-file-pdf me-1"></i>Packing List</a>
+          <a href="{{ url_for('reports.shipping_instructions_pdf', container_id=container.id) }}" class="btn btn-sm btn-outline-danger" target="_blank"><i class="bi bi-file-pdf me-1"></i>Shipping Inst.</a>
+          <a href="{{ url_for('reports.manifest_csv', container_id=container.id) }}" class="btn btn-sm btn-outline-success"><i class="bi bi-filetype-csv me-1"></i>Manifest CSV</a>
+          <a href="{{ url_for('finance.invoice_list') }}" class="btn btn-sm btn-outline-primary"><i class="bi bi-cash-stack me-1"></i>Invoices</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

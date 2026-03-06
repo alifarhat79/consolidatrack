@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Edit' if container else 'New' }} Container — ConsolidaTrack{% endblock %}
+{% block content %}
+<h3>{{ 'Edit Container' if container else 'New Container' }}</h3>
+<div class="card col-md-8">
+  <div class="card-body">
+    <form method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="row">
+        <div class="col-md-6 mb-3">
+          <label class="form-label">Warehouse *</label>
+          <select name="warehouse_id" class="form-select" {% if container %}disabled{% endif %} required>
+            {% for wh in warehouses %}
+            <option value="{{ wh.id }}" {% if container and container.warehouse_id == wh.id %}selected{% endif %}>{{ wh.code }} — {{ wh.name }}</option>
+            {% endfor %}
+          </select>
+          {% if container %}<input type="hidden" name="warehouse_id" value="{{ container.warehouse_id }}">{% endif %}
+        </div>
+        <div class="col-md-6 mb-3">
+          <label class="form-label">Container Number</label>
+          <input type="text" name="container_number" class="form-control" value="{{ container.container_number or '' if container else '' }}" placeholder="e.g. MSKU1234567">
+        </div>
+      </div>
+      <div class="row">
+        <div class="col-md-3 mb-3">
+          <label class="form-label">Type</label>
+          <select name="container_type" class="form-select">
+            <option value="">—</option>
+            {% for t in ['20','40','40HQ'] %}
+            <option value="{{ t }}" {% if container and container.container_type == t %}selected{% endif %}>{{ t }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-3 mb-3">
+          <label class="form-label">Booking</label>
+          <input type="text" name="booking_number" class="form-control" value="{{ container.booking_number or '' if container else '' }}">
+        </div>
+        <div class="col-md-3 mb-3">
+          <label class="form-label">Carrier/Naviera</label>
+          <input type="text" name="carrier" class="form-control" value="{{ container.carrier or '' if container else '' }}">
+        </div>
+        <div class="col-md-3 mb-3">
+          <label class="form-label">Forwarder</label>
+          <input type="text" name="forwarder" class="form-control" value="{{ container.forwarder or '' if container else '' }}">
+        </div>
+      </div>
+      <div class="row">
+        <div class="col-md-3 mb-3">
+          <label class="form-label">POL</label>
+          <input type="text" name="pol" class="form-control" value="{{ container.pol or '' if container else '' }}">
+        </div>
+        <div class="col-md-3 mb-3">
+          <label class="form-label">POD</label>
+          <input type="text" name="pod" class="form-control" value="{{ container.pod or '' if container else '' }}">
+        </div>
+        <div class="col-md-3 mb-3">
+          <label class="form-label">ETD</label>
+          <input type="date" name="etd" class="form-control" value="{{ container.etd or '' if container else '' }}">
+        </div>
+        <div class="col-md-3 mb-3">
+          <label class="form-label">ETA</label>
+          <input type="date" name="eta" class="form-control" value="{{ container.eta or '' if container else '' }}">
+        </div>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Notes</label>
+        <textarea name="notes" class="form-control" rows="2">{{ container.notes or '' if container else '' }}</textarea>
+      </div>
+      <button type="submit" class="btn btn-primary">{{ 'Update' if container else 'Create Container' }}</button>
+      <a href="{{ url_for('containers.container_list') }}" class="btn btn-secondary">Cancel</a>
+    </form>
+  </div>
+</div>
+{% endblock %}

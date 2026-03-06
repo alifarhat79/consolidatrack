@@ -1,0 +1,309 @@
+{% extends "base.html" %}
+{% block title %}{{ container.container_number or 'TBD' }} — Gallery{% endblock %}
+{% block page_title %}
+<a href="{{ url_for('containers.container_list') }}" style="color:var(--text-3);text-decoration:none"><i class="bi bi-box-seam me-1"></i>Containers</a>
+<i class="bi bi-chevron-right mx-2" style="font-size:.7rem;color:var(--text-3)"></i>
+<a href="{{ url_for('containers.container_detail', container_id=container.id) }}" style="color:var(--text-2);text-decoration:none">{{ container.container_number or 'TBD' }}</a>
+<i class="bi bi-chevron-right mx-2" style="font-size:.7rem;color:var(--text-3)"></i>
+Gallery
+{% endblock %}
+{% block topbar_actions %}
+<button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalUpload"><i class="bi bi-cloud-arrow-up me-1"></i>Upload Files</button>
+<a href="{{ url_for('containers.container_detail', container_id=container.id) }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left me-1"></i>Back</a>
+{% endblock %}
+
+{% block extra_head %}
+<style>
+  .gallery-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px}
+  .file-card{border-radius:12px;overflow:hidden;border:1px solid var(--border);background:var(--surface);transition:transform .15s,box-shadow .15s}
+  .file-card:hover{transform:translateY(-3px);box-shadow:0 8px 24px rgba(0,0,0,.1)}
+  .file-card .thumb{width:100%;height:200px;overflow:hidden;position:relative;background:#f1f5f9;display:flex;align-items:center;justify-content:center}
+  .file-card .thumb img{width:100%;height:100%;object-fit:cover;cursor:pointer;display:block}
+  .file-card .thumb .pdf-thumb{width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;background:linear-gradient(135deg,#fef2f2,#fee2e2)}
+  .file-card .thumb .pdf-thumb i{font-size:3rem;color:#dc2626;margin-bottom:6px}
+  .file-card .thumb .pdf-thumb span{font-size:.78rem;color:#991b1b;font-weight:600}
+  .file-card .thumb .type-badge{position:absolute;top:8px;right:8px;font-size:.65rem;padding:3px 8px;border-radius:6px;font-weight:700;text-transform:uppercase;backdrop-filter:blur(4px)}
+  .type-badge.img-badge{background:rgba(59,130,246,.85);color:#fff}
+  .type-badge.pdf-badge{background:rgba(220,38,38,.85);color:#fff}
+  .file-card .info{padding:10px 14px}
+  .file-card .info .caption{font-size:.84rem;font-weight:600;color:var(--text-1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .file-card .info .meta{font-size:.72rem;color:var(--text-3);margin-top:2px;display:flex;justify-content:space-between;align-items:center}
+  .phase-section{margin-bottom:28px}
+  .phase-title{font-size:.82rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text-2);margin-bottom:12px;padding-bottom:8px;border-bottom:2px solid var(--border)}
+  .phase-badge{font-size:.65rem;padding:2px 8px;border-radius:10px;margin-left:8px;font-weight:600}
+  /* Lightbox for images */
+  .lightbox{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.92);z-index:9999;display:none;align-items:center;justify-content:center;cursor:pointer}
+  .lightbox.active{display:flex}
+  .lightbox img{max-width:90%;max-height:90%;border-radius:8px;box-shadow:0 0 40px rgba(0,0,0,.5)}
+  .lightbox .lb-close{position:absolute;top:20px;right:24px;color:#fff;font-size:2rem;cursor:pointer;z-index:10000}
+  .lightbox .lb-nav{position:absolute;top:50%;transform:translateY(-50%);color:#fff;font-size:2.5rem;cursor:pointer;padding:20px;opacity:.7;transition:opacity .2s}
+  .lightbox .lb-nav:hover{opacity:1}
+  .lightbox .lb-prev{left:10px}
+  .lightbox .lb-next{right:10px}
+  .lightbox .lb-caption{position:absolute;bottom:30px;left:50%;transform:translateX(-50%);color:#fff;font-size:.9rem;text-align:center;background:rgba(0,0,0,.5);padding:8px 20px;border-radius:8px}
+  /* PDF viewer modal */
+  .pdf-viewer-backdrop{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.85);z-index:9998;display:none;align-items:center;justify-content:center;flex-direction:column}
+  .pdf-viewer-backdrop.active{display:flex}
+  .pdf-viewer-backdrop .pv-close{position:absolute;top:20px;right:24px;color:#fff;font-size:2rem;cursor:pointer;z-index:9999}
+  .pdf-viewer-backdrop .pv-title{color:#fff;font-size:.9rem;margin-bottom:10px;background:rgba(0,0,0,.5);padding:6px 16px;border-radius:8px}
+  .pdf-viewer-backdrop iframe{width:90%;height:85%;border:none;border-radius:10px;box-shadow:0 0 40px rgba(0,0,0,.4)}
+  .upload-zone{border:2px dashed var(--border);border-radius:12px;padding:30px;text-align:center;transition:all .2s;cursor:pointer}
+  .upload-zone:hover,.upload-zone.dragover{border-color:var(--accent);background:rgba(99,102,241,.04)}
+  .upload-zone i{font-size:2.5rem;color:var(--text-3);margin-bottom:8px}
+  .empty-gallery{text-align:center;padding:60px 20px;color:var(--text-3)}
+  .empty-gallery i{font-size:4rem;margin-bottom:12px;display:block}
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Summary -->
+<div class="card mb-4">
+  <div class="card-body d-flex align-items-center justify-content-between py-3 px-4">
+    <div>
+      <strong style="color:var(--accent);font-size:1.1rem;letter-spacing:1px">{{ container.container_number or 'TBD' }}</strong>
+      <span style="color:var(--text-3);margin:0 8px">|</span>
+      <span class="badge-status badge-{{ container.status.value|lower }}">{{ container.status.value }}</span>
+      <span style="color:var(--text-3);margin:0 8px">|</span>
+      <span style="font-size:.88rem;color:var(--text-2)">{{ container.container_type or '?' }} | {{ container.pol or '?' }} → {{ container.pod or '?' }}</span>
+    </div>
+    <div style="font-size:.88rem;color:var(--text-2)">
+      <strong>{{ photos|length }}</strong> file{{ 's' if photos|length != 1 else '' }}
+      {% set ns2 = namespace(imgs=0, pdfs=0) %}
+      {% for p in photos %}
+        {% if p.filename.endswith('.pdf') %}{% set ns2.pdfs = ns2.pdfs + 1 %}{% else %}{% set ns2.imgs = ns2.imgs + 1 %}{% endif %}
+      {% endfor %}
+      {% if ns2.imgs %}<span style="margin-left:6px"><i class="bi bi-image" style="color:var(--accent)"></i> {{ ns2.imgs }}</span>{% endif %}
+      {% if ns2.pdfs %}<span style="margin-left:6px"><i class="bi bi-file-earmark-pdf" style="color:#dc2626"></i> {{ ns2.pdfs }}</span>{% endif %}
+    </div>
+  </div>
+</div>
+
+{% if photos %}
+{% for phase, phase_files in by_phase.items() %}
+<div class="phase-section">
+  <div class="phase-title">
+    <i class="bi bi-{% if phase == 'LOADING' %}box-arrow-in-down{% elif phase == 'CLOSED' %}lock{% elif phase == 'SHIPPED' %}truck{% elif phase == 'ARRIVED' %}geo-alt{% else %}image{% endif %} me-1"></i>
+    {{ phase }}
+    <span class="phase-badge" style="background:var(--accent);color:#fff">{{ phase_files|length }}</span>
+  </div>
+  <div class="gallery-grid">
+    {% for p in phase_files %}
+    {% set is_pdf = p.filename.endswith('.pdf') %}
+    <div class="file-card">
+      <div class="thumb">
+        {% if is_pdf %}
+        <div class="pdf-thumb" onclick="openPdfViewer('{{ url_for('containers.serve_photo', filename=p.filename) }}', '{{ p.caption or p.original_name }}')">
+          <i class="bi bi-file-earmark-pdf-fill"></i>
+          <span>{{ p.original_name[:25] }}{% if p.original_name|length > 25 %}...{% endif %}</span>
+        </div>
+        <span class="type-badge pdf-badge">PDF</span>
+        {% else %}
+        <img src="{{ url_for('containers.serve_photo', filename=p.filename) }}"
+             alt="{{ p.caption or p.original_name }}"
+             onclick="openLightbox({{ loop.index0 }}, '{{ phase }}')"
+             loading="lazy">
+        <span class="type-badge img-badge">IMG</span>
+        {% endif %}
+      </div>
+      <div class="info">
+        <div class="caption" title="{{ p.caption or p.original_name }}">{{ p.caption or p.original_name }}</div>
+        <div class="meta">
+          <span>{{ p.uploaded_at.strftime('%d/%m/%Y %H:%M') }}</span>
+          <span style="display:flex;gap:8px;align-items:center">
+            {% if is_pdf %}
+            <a href="{{ url_for('containers.serve_photo', filename=p.filename) }}" target="_blank" class="btn btn-link btn-sm p-0" style="font-size:.75rem;color:var(--accent)" title="Open in new tab"><i class="bi bi-box-arrow-up-right"></i></a>
+            {% endif %}
+            <a href="{{ url_for('containers.serve_photo', filename=p.filename) }}" download="{{ p.original_name }}" class="btn btn-link btn-sm p-0" style="font-size:.75rem;color:var(--text-2)" title="Download"><i class="bi bi-download"></i></a>
+            <form method="post" action="{{ url_for('containers.delete_photo', container_id=container.id, photo_id=p.id) }}" style="display:inline" onsubmit="return confirm('Delete this file?')">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="btn btn-link btn-sm p-0" style="color:var(--danger);font-size:.75rem" title="Delete"><i class="bi bi-trash"></i></button>
+            </form>
+          </span>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endfor %}
+{% else %}
+<div class="empty-gallery">
+  <i class="bi bi-camera"></i>
+  <div style="font-size:1.1rem;font-weight:600;color:var(--text-2);margin-bottom:4px">No files yet</div>
+  <div style="font-size:.88rem">Click "Upload Files" to add photos or PDFs for this container</div>
+</div>
+{% endif %}
+
+<!-- Lightbox (images) -->
+<div class="lightbox" id="lightbox" onclick="closeLightbox(event)">
+  <div class="lb-close" onclick="closeLightbox()"><i class="bi bi-x-lg"></i></div>
+  <div class="lb-nav lb-prev" onclick="event.stopPropagation();navLightbox(-1)"><i class="bi bi-chevron-left"></i></div>
+  <img id="lbImg" src="" alt="">
+  <div class="lb-nav lb-next" onclick="event.stopPropagation();navLightbox(1)"><i class="bi bi-chevron-right"></i></div>
+  <div class="lb-caption" id="lbCaption"></div>
+</div>
+
+<!-- PDF Viewer -->
+<div class="pdf-viewer-backdrop" id="pdfViewer" onclick="closePdfViewer(event)">
+  <div class="pv-close" onclick="closePdfViewer()"><i class="bi bi-x-lg"></i></div>
+  <div class="pv-title" id="pvTitle"></div>
+  <iframe id="pvFrame" src=""></iframe>
+</div>
+
+<!-- Upload Modal -->
+<div class="modal fade" id="modalUpload" tabindex="-1">
+  <div class="modal-dialog"><div class="modal-content" style="border:none;border-radius:14px;overflow:hidden">
+    <div style="background:linear-gradient(135deg,#1e293b,#334155);padding:18px 24px;color:#fff">
+      <div class="d-flex justify-content-between align-items-center">
+        <h6 style="margin:0;font-weight:700"><i class="bi bi-cloud-arrow-up me-2"></i>Upload Files — {{ container.container_number or 'TBD' }}</h6>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+    </div>
+    <form method="post" action="{{ url_for('containers.upload_photos', container_id=container.id) }}" enctype="multipart/form-data">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="modal-body p-4">
+        <div class="upload-zone" id="uploadZone" onclick="document.getElementById('photoInput').click()">
+          <i class="bi bi-cloud-arrow-up"></i>
+          <div style="font-weight:600;color:var(--text-2);margin-bottom:4px">Click or drag files here</div>
+          <div style="font-size:.78rem;color:var(--text-3)">
+            <span style="color:var(--accent)"><i class="bi bi-image me-1"></i>JPG, PNG, GIF, WEBP</span>
+            <span style="margin:0 8px;color:var(--border)">|</span>
+            <span style="color:#dc2626"><i class="bi bi-file-earmark-pdf me-1"></i>PDF</span>
+            <span style="margin:0 8px;color:var(--border)">|</span>
+            Max 16 MB
+          </div>
+          <div id="fileCount" style="font-size:.82rem;color:var(--accent);font-weight:600;margin-top:8px;display:none"></div>
+        </div>
+        <input type="file" name="photos" id="photoInput" multiple accept="image/*,.pdf,application/pdf" style="display:none"
+               onchange="showFileCount(this)">
+        <div class="row g-3 mt-2">
+          <div class="col-12">
+            <label class="form-label">Caption (optional)</label>
+            <input type="text" name="caption" class="form-control" placeholder="e.g. Loading day 1, BL document, Seal #ABC123...">
+          </div>
+        </div>
+        <div id="previewGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:8px;margin-top:12px"></div>
+      </div>
+      <div class="modal-footer" style="border-top:1px solid var(--border);padding:16px 24px">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-primary"><i class="bi bi-cloud-arrow-up me-1"></i>Upload</button>
+      </div>
+    </form>
+  </div></div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+// File count & preview
+function showFileCount(input) {
+    var fc = document.getElementById('fileCount');
+    var grid = document.getElementById('previewGrid');
+    grid.innerHTML = '';
+    if (input.files.length > 0) {
+        var imgs = 0, pdfs = 0;
+        Array.from(input.files).forEach(function(file) {
+            if (file.type === 'application/pdf') {
+                pdfs++;
+                var div = document.createElement('div');
+                div.style.cssText = 'width:100%;height:80px;border-radius:8px;border:1px solid var(--border);display:flex;flex-direction:column;align-items:center;justify-content:center;background:#fef2f2';
+                div.innerHTML = '<i class="bi bi-file-earmark-pdf-fill" style="font-size:1.5rem;color:#dc2626"></i><span style="font-size:.6rem;color:#991b1b;margin-top:2px">PDF</span>';
+                grid.appendChild(div);
+            } else if (file.type.startsWith('image/')) {
+                imgs++;
+                var reader = new FileReader();
+                reader.onload = function(e) {
+                    var img = document.createElement('img');
+                    img.src = e.target.result;
+                    img.style.cssText = 'width:100%;height:80px;object-fit:cover;border-radius:8px;border:1px solid var(--border)';
+                    grid.appendChild(img);
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+        var parts = [];
+        if (imgs) parts.push(imgs + ' image' + (imgs > 1 ? 's' : ''));
+        if (pdfs) parts.push(pdfs + ' PDF' + (pdfs > 1 ? 's' : ''));
+        fc.textContent = parts.join(' + ') + ' selected';
+        fc.style.display = 'block';
+    } else {
+        fc.style.display = 'none';
+    }
+}
+
+// Drag & drop
+var zone = document.getElementById('uploadZone');
+if (zone) {
+    ['dragenter','dragover'].forEach(function(e) {
+        zone.addEventListener(e, function(ev) { ev.preventDefault(); zone.classList.add('dragover'); });
+    });
+    ['dragleave','drop'].forEach(function(e) {
+        zone.addEventListener(e, function(ev) { ev.preventDefault(); zone.classList.remove('dragover'); });
+    });
+    zone.addEventListener('drop', function(ev) {
+        var input = document.getElementById('photoInput');
+        input.files = ev.dataTransfer.files;
+        showFileCount(input);
+    });
+}
+
+// Image Lightbox
+var imageFiles = [
+    {% for p in photos %}{% if not p.filename.endswith('.pdf') %}
+    { url: "{{ url_for('containers.serve_photo', filename=p.filename) }}", caption: "{{ p.caption or p.original_name }}" },
+    {% endif %}{% endfor %}
+];
+var currentIdx = 0;
+
+function openLightbox(idx, phase) {
+    currentIdx = idx;
+    var lb = document.getElementById('lightbox');
+    document.getElementById('lbImg').src = imageFiles[idx].url;
+    document.getElementById('lbCaption').textContent = imageFiles[idx].caption;
+    lb.classList.add('active');
+    document.body.style.overflow = 'hidden';
+}
+
+function closeLightbox(ev) {
+    if (ev && ev.target.tagName === 'IMG') return;
+    document.getElementById('lightbox').classList.remove('active');
+    document.body.style.overflow = '';
+}
+
+function navLightbox(dir) {
+    if (!imageFiles.length) return;
+    currentIdx = (currentIdx + dir + imageFiles.length) % imageFiles.length;
+    document.getElementById('lbImg').src = imageFiles[currentIdx].url;
+    document.getElementById('lbCaption').textContent = imageFiles[currentIdx].caption;
+}
+
+// PDF Viewer
+function openPdfViewer(url, title) {
+    document.getElementById('pvFrame').src = url;
+    document.getElementById('pvTitle').textContent = title;
+    document.getElementById('pdfViewer').classList.add('active');
+    document.body.style.overflow = 'hidden';
+}
+
+function closePdfViewer(ev) {
+    if (ev && (ev.target.tagName === 'IFRAME' || ev.target.closest('.pv-title'))) return;
+    document.getElementById('pvFrame').src = '';
+    document.getElementById('pdfViewer').classList.remove('active');
+    document.body.style.overflow = '';
+}
+
+// Keyboard
+document.addEventListener('keydown', function(e) {
+    var lb = document.getElementById('lightbox');
+    var pv = document.getElementById('pdfViewer');
+    if (e.key === 'Escape') {
+        if (lb.classList.contains('active')) closeLightbox();
+        if (pv.classList.contains('active')) closePdfViewer();
+    }
+    if (lb.classList.contains('active')) {
+        if (e.key === 'ArrowLeft') navLightbox(-1);
+        if (e.key === 'ArrowRight') navLightbox(1);
+    }
+});
+</script>
+{% endblock %}

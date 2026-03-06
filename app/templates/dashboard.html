@@ -1,0 +1,954 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — ConsolidaTrack{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+{% block topbar_actions %}
+<button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalNewContainer"><i class="bi bi-plus-lg me-1"></i>New Container</button>
+<button class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalNewWR"><i class="bi bi-plus-lg me-1"></i>New WR</button>
+{% endblock %}
+
+{% block extra_head %}
+<style>
+  .detail-row{display:flex;padding:8px 0;border-bottom:1px solid #f1f5f9}
+  .detail-row:last-child{border:none}
+  .detail-label{width:130px;font-size:.78rem;color:var(--text-3);font-weight:600;text-transform:uppercase;letter-spacing:.3px;flex-shrink:0}
+  .detail-value{font-size:.88rem;color:var(--text-1);font-weight:500;flex:1}
+  .modal-stat{text-align:center;padding:12px;background:#f8fafc;border-radius:10px;border:1px solid var(--border)}
+  .modal-stat .ms-val{font-size:1.2rem;font-weight:700;color:var(--text-1)}
+  .modal-stat .ms-lbl{font-size:.68rem;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px}
+  .mode-toggle{display:inline-flex;border:1px solid rgba(255,255,255,.25);border-radius:8px;overflow:hidden;font-size:.75rem}
+  .mode-toggle .mt-btn{padding:4px 14px;cursor:pointer;color:rgba(255,255,255,.6);transition:all .2s;border:none;background:none}
+  .mode-toggle .mt-btn.active{background:rgba(255,255,255,.15);color:#fff;font-weight:600}
+  .mode-toggle .mt-btn:hover:not(.active){color:rgba(255,255,255,.9)}
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Warehouse Tabs -->
+<ul class="nav nav-tabs mb-0" role="tablist" style="border-bottom:none">
+  {% for code, data in stats.items() %}
+  <li class="nav-item" role="presentation">
+    <button class="nav-link {% if loop.first %}active{% endif %}" data-bs-toggle="tab" data-bs-target="#wh-{{ code }}" type="button" role="tab"
+            style="font-weight:600;font-size:.88rem;border-radius:10px 10px 0 0;padding:10px 20px">
+      <i class="bi bi-building me-1"></i>{{ data.warehouse.name }}
+      <span style="background:var(--accent);color:#fff;font-size:.65rem;padding:2px 8px;border-radius:10px;margin-left:6px">{{ data.pending_wrs }} WRs</span>
+    </button>
+  </li>
+  {% endfor %}
+</ul>
+
+<div class="tab-content">
+{% for code, data in stats.items() %}
+<div class="tab-pane fade {% if loop.first %}show active{% endif %}" id="wh-{{ code }}" role="tabpanel">
+  <div class="row g-3 mb-4 mt-1">
+    <div class="col-sm-6 col-xl-3">
+      <a href="{{ url_for('wr.wr_list', warehouse_id=data.warehouse.id) }}" class="text-decoration-none">
+      <div class="stat-card blue" style="cursor:pointer;transition:transform .15s,box-shadow .15s" onmouseover="this.style.transform='translateY(-3px)';this.style.boxShadow='0 4px 12px rgba(59,130,246,.15)'" onmouseout="this.style.transform='';this.style.boxShadow=''">
+        <div class="d-flex align-items-center justify-content-between mb-2"><div class="stat-icon"><i class="bi bi-receipt"></i></div></div>
+        <div class="stat-value">{{ data.pending_wrs }}</div><div class="stat-label">Pending WRs</div>
+      </div></a>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+      <a href="{{ url_for('wr.stock_report', warehouse_id=data.warehouse.id) }}" class="text-decoration-none">
+      <div class="stat-card {% if data.available_cbm >= 60 %}amber{% else %}green{% endif %}" style="cursor:pointer;transition:transform .15s,box-shadow .15s" onmouseover="this.style.transform='translateY(-3px)';this.style.boxShadow='0 4px 12px rgba(16,185,129,.15)'" onmouseout="this.style.transform='';this.style.boxShadow=''">
+        <div class="d-flex align-items-center justify-content-between mb-2"><div class="stat-icon"><i class="bi bi-boxes"></i></div></div>
+        <div class="stat-value">{{ "%.1f"|format(data.available_cbm) }}<small style="font-size:.5em;color:var(--text-3)"> m³</small></div><div class="stat-label">Available CBM</div>
+        {% if data.available_cbm >= 60 %}<div style="font-size:.75rem;color:var(--warning);font-weight:500;margin-top:4px"><i class="bi bi-exclamation-triangle"></i> Near capacity</div>{% endif %}
+      </div></a>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+      <a href="{{ url_for('wr.stock_report', warehouse_id=data.warehouse.id) }}" class="text-decoration-none">
+      <div class="stat-card amber" style="cursor:pointer;transition:transform .15s,box-shadow .15s" onmouseover="this.style.transform='translateY(-3px)';this.style.boxShadow='0 4px 12px rgba(245,158,11,.15)'" onmouseout="this.style.transform='';this.style.boxShadow=''">
+        <div class="d-flex align-items-center justify-content-between mb-2"><div class="stat-icon"><i class="bi bi-speedometer"></i></div></div>
+        <div class="stat-value">{{ "%.0f"|format(data.available_kg) }}<small style="font-size:.5em;color:var(--text-3)"> kg</small></div><div class="stat-label">Available KG</div>
+      </div></a>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+      <a href="{{ url_for('containers.container_list', warehouse_id=data.warehouse.id) }}" class="text-decoration-none">
+      <div class="stat-card red" style="cursor:pointer;transition:transform .15s,box-shadow .15s" onmouseover="this.style.transform='translateY(-3px)';this.style.boxShadow='0 4px 12px rgba(239,68,68,.15)'" onmouseout="this.style.transform='';this.style.boxShadow=''">
+        <div class="d-flex align-items-center justify-content-between mb-2"><div class="stat-icon"><i class="bi bi-box-seam"></i></div></div>
+        <div class="stat-value">{{ data.active_containers }}</div><div class="stat-label">Active Containers</div>
+      </div></a>
+    </div>
+  </div>
+
+  <div class="row g-4">
+    <!-- Stock Table -->
+    <div class="col-lg-7">
+      <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center py-3 px-4">
+          <span><i class="bi bi-receipt-cutoff me-2"></i>Stock in {{ data.warehouse.name }}</span>
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="font-size:.78rem;color:var(--text-3)">{{ data.available_units }} units | {{ "%.2f"|format(data.available_cbm) }} m³</span>
+            <button class="btn btn-sm btn-primary" onclick="openWrModal('{{ data.warehouse.id }}')"><i class="bi bi-plus me-1"></i>New WR</button>
+          </div>
+        </div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-hover mb-0">
+              <thead><tr><th>WR#</th><th>Customer</th><th>Commodity</th><th>Status</th><th class="text-end">Avail</th><th class="text-end">CBM</th><th class="text-end">KG</th><th></th></tr></thead>
+              <tbody>
+                {% for wr in data.pending_wrs_list %}
+                {% set wr_ratio = wr.qty_available / wr.qty_total if wr.qty_total > 0 else 0 %}
+                <tr>
+                  <td><strong style="color:var(--accent)">{{ wr.wr_number }}</strong></td>
+                  <td>{{ wr.customer.name }}</td>
+                  <td>{{ wr.commodity[:25] }}</td>
+                  <td><span class="badge-status badge-{{ wr.status.value|lower }}">{{ wr.status.value }}</span></td>
+                  <td class="text-end fw-semibold">{{ wr.qty_available }} <small style="color:var(--text-3)">{{ wr.qty_unit_type.value }}</small></td>
+                  <td class="text-end">{{ "%.2f"|format(wr.cbm_total|float * wr_ratio) }}</td>
+                  <td class="text-end">{{ "%.0f"|format(wr.kg_total|float * wr_ratio) }}</td>
+                  <td>
+                    <div class="btn-group btn-group-sm">
+                      <button class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modalWR{{ wr.id }}"><i class="bi bi-eye"></i></button>
+                      {% if wr.status.value == 'RECEIVED' and wr.load_lines.count() == 0 %}
+                      <form method="post" action="{{ url_for('wr.wr_cancel', wr_id=wr.id) }}" style="display:inline" onsubmit="return confirm('Cancel {{ wr.wr_number }} and remove from warehouse?')">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="next" value="{{ url_for('dashboard') }}">
+                        <button type="submit" class="btn btn-sm btn-outline-danger" title="Return / Cancel"><i class="bi bi-arrow-return-left"></i></button>
+                      </form>
+                      {% endif %}
+                    </div>
+                  </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="8" class="empty-state py-4"><i class="bi bi-inbox"></i><div style="font-weight:600;color:var(--text-2)">No pending stock</div>
+                  <button class="btn btn-sm btn-outline-primary mt-2" onclick="openWrModal('{{ data.warehouse.id }}')"><i class="bi bi-plus me-1"></i>Create WR</button></td></tr>
+                {% endfor %}
+              </tbody>
+              {% if data.pending_wrs_list %}
+              <tfoot><tr style="background:#f8fafc;font-weight:700"><td colspan="4">TOTAL</td><td class="text-end">{{ data.available_units }}</td><td class="text-end" style="color:var(--accent)">{{ "%.2f"|format(data.available_cbm) }}</td><td class="text-end">{{ "%.0f"|format(data.available_kg) }}</td><td></td></tr></tfoot>
+              {% endif %}
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- Containers -->
+    <div class="col-lg-5">
+      <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center py-3 px-4">
+          <span><i class="bi bi-box-seam me-2"></i>Containers</span>
+          <button class="btn btn-sm btn-primary" onclick="openContainerModal('{{ data.warehouse.id }}')"><i class="bi bi-plus me-1"></i>New</button>
+        </div>
+        <div class="card-body p-0">
+          {% if data.containers %}
+          {% for c in data.containers %}
+          <div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px">
+            <div style="flex:1">
+              <div style="font-weight:600;color:var(--text-1);font-size:.9rem">{{ c.container_number or 'TBD' }} <span style="font-size:.75rem;color:var(--text-3);font-weight:400">{{ c.container_type or '' }}</span></div>
+              <div style="font-size:.78rem;color:var(--text-2)">{{ c.pol or '?' }} &rarr; {{ c.pod or '?' }}{% if c.etd %} | ETD: {{ c.etd }}{% endif %}</div>
+            </div>
+            <div style="text-align:right;min-width:70px">
+              <div style="font-weight:700;font-size:.9rem;color:var(--text-1)">{{ "%.1f"|format(c.total_cbm|float) }} <small style="color:var(--text-3)">m³</small></div>
+              <div style="font-size:.72rem;color:var(--text-3)">{{ "%.0f"|format(c.total_kg|float) }} kg</div>
+            </div>
+            <span class="badge-status badge-{{ c.status.value|lower }}">{{ c.status.value }}</span>
+            <div class="btn-group btn-group-sm">
+              <button class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modalCnt{{ c.id }}"><i class="bi bi-eye"></i></button>
+              {% if c.is_editable %}<a href="{{ url_for('containers.container_loading', container_id=c.id) }}" class="btn btn-outline-warning"><i class="bi bi-box-arrow-in-down"></i></a>{% endif %}
+            </div>
+          </div>
+          {% endfor %}
+          {% else %}
+          <div class="empty-state py-4"><i class="bi bi-box-seam"></i><div style="font-weight:600;color:var(--text-2)">No containers</div></div>
+          {% endif %}
+        </div>
+      </div>
+      {% if data.available_cbm > 0 %}
+      <div class="card mt-3"><div class="card-body p-3">
+        <div style="font-size:.78rem;font-weight:600;color:var(--text-2);margin-bottom:8px"><i class="bi bi-calculator me-1"></i>Quick Capacity Check</div>
+        {% set cbm = data.available_cbm %}
+        <div class="d-flex gap-2 flex-wrap">
+          {% for label, cap in [("20'", 33), ("40'", 67), ("40'HQ", 76)] %}
+          <div style="background:{% if cbm <= cap %}#ecfdf5{% else %}#f1f5f9{% endif %};border:1px solid {% if cbm <= cap %}#a7f3d0{% else %}var(--border){% endif %};border-radius:8px;padding:8px 12px;text-align:center;flex:1;min-width:80px">
+            <div style="font-weight:700;font-size:.9rem;color:{% if cbm <= cap %}#065f46{% else %}var(--text-1){% endif %}">{{ label }}</div>
+            <div style="font-size:.7rem;color:var(--text-3)">{{ cap }} m³</div>
+            <div style="font-size:.75rem;font-weight:600;color:{% if cbm <= cap %}var(--success){% else %}var(--danger){% endif %}">
+              {% if cbm <= cap %}<i class="bi bi-check-circle"></i> {{ "%.0f"|format((cbm/cap)*100) }}%{% else %}<i class="bi bi-x-circle"></i> +{{ "%.0f"|format(cbm - cap) }}m³{% endif %}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div></div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endfor %}
+</div>
+
+<!-- All Active Containers -->
+<h6 style="font-weight:600;color:var(--text-1);margin:28px 0 12px"><i class="bi bi-globe me-2"></i>All Active Containers</h6>
+<div class="card"><div class="card-body p-0"><div class="table-responsive">
+  <table class="table table-hover mb-0">
+    <thead><tr><th>Container</th><th>WH</th><th>Status</th><th>Type</th><th class="text-end">CBM</th><th class="text-end">KG</th><th>Route</th><th>ETD</th><th>ETA</th><th class="text-center"></th></tr></thead>
+    <tbody>
+      {% for c in active_containers %}
+      <tr>
+        <td><strong style="color:var(--accent)">{{ c.container_number or 'TBD' }}</strong></td>
+        <td><span class="badge bg-light text-dark border">{{ c.warehouse.code }}</span></td>
+        <td><span class="badge-status badge-{{ c.status.value|lower }}">{{ c.status.value }}</span></td>
+        <td>{{ c.container_type or '-' }}</td>
+        <td class="text-end fw-semibold">{{ "%.1f"|format(c.total_cbm|float) }}</td>
+        <td class="text-end">{{ "%.0f"|format(c.total_kg|float) }}</td>
+        <td>{{ c.pol or '?' }} &rarr; {{ c.pod or '?' }}</td>
+        <td>{{ c.etd or '-' }}</td><td>{{ c.eta or '-' }}</td>
+        <td class="text-center"><div class="btn-group btn-group-sm">
+          <button class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modalCnt{{ c.id }}"><i class="bi bi-eye"></i></button>
+          {% if c.is_editable %}<a href="{{ url_for('containers.container_loading', container_id=c.id) }}" class="btn btn-outline-warning"><i class="bi bi-box-arrow-in-down"></i></a>{% endif %}
+        </div></td>
+      </tr>
+      {% else %}
+      <tr><td colspan="10" class="empty-state"><i class="bi bi-inbox"></i>No active containers</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div></div></div>
+
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<!--  WR DETAIL + EDIT MODALS                                         -->
+<!-- ══════════════════════════════════════════════════════════════════ -->
+{% for code, data in stats.items() %}
+{% for wr in data.pending_wrs_list %}
+{% set wr_ratio = wr.qty_available / wr.qty_total if wr.qty_total > 0 else 0 %}
+<div class="modal fade" id="modalWR{{ wr.id }}" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content" style="border:none;border-radius:14px;overflow:hidden">
+      <!-- Header -->
+      <div style="background:linear-gradient(135deg,#3b82f6,#2563eb);padding:18px 24px;color:#fff">
+        <div class="d-flex justify-content-between align-items-center">
+          <div>
+            <h6 style="margin:0;font-weight:700"><i class="bi bi-receipt-cutoff me-2"></i>{{ wr.wr_number }}</h6>
+            <div style="font-size:.78rem;opacity:.7;margin-top:2px">{{ wr.customer.name }} | {{ data.warehouse.name }}</div>
+          </div>
+          <div class="d-flex align-items-center gap-3">
+            <div class="mode-toggle">
+              <button class="mt-btn active" onclick="toggleMode('wr{{ wr.id }}','view',this)"><i class="bi bi-eye me-1"></i>View</button>
+              <button class="mt-btn" onclick="toggleMode('wr{{ wr.id }}','edit',this)"><i class="bi bi-pencil me-1"></i>Edit</button>
+            </div>
+            <span class="badge-status badge-{{ wr.status.value|lower }}" style="font-size:.75rem">{{ wr.status.value }}</span>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          </div>
+        </div>
+      </div>
+
+      <!-- VIEW MODE -->
+      <div id="wr{{ wr.id }}-view">
+        <div class="modal-body p-4">
+          <div class="row g-2 mb-4">
+            <div class="col-3"><div class="modal-stat"><div class="ms-val">{{ wr.qty_total }}</div><div class="ms-lbl">Total {{ wr.qty_unit_type.value }}</div></div></div>
+            <div class="col-3"><div class="modal-stat"><div class="ms-val" style="color:var(--success)">{{ wr.qty_available }}</div><div class="ms-lbl">Available</div></div></div>
+            <div class="col-3"><div class="modal-stat"><div class="ms-val" style="color:var(--accent)">{{ "%.4f"|format(wr.cbm_total|float) }}</div><div class="ms-lbl">CBM Total</div></div></div>
+            <div class="col-3"><div class="modal-stat"><div class="ms-val">{{ "%.1f"|format(wr.kg_total|float) }}</div><div class="ms-lbl">KG Total</div></div></div>
+          </div>
+          <div class="detail-row"><div class="detail-label">Commodity</div><div class="detail-value">{{ wr.commodity }}</div></div>
+          <div class="detail-row"><div class="detail-label">Date Received</div><div class="detail-value">{{ wr.date_received }}</div></div>
+          <div class="detail-row"><div class="detail-label">Warehouse</div><div class="detail-value">{{ data.warehouse.name }} ({{ code }})</div></div>
+          <div class="detail-row"><div class="detail-label">Customer</div><div class="detail-value">{{ wr.customer.name }} ({{ wr.customer.code }})</div></div>
+          <div class="detail-row"><div class="detail-label">Loaded</div><div class="detail-value">{{ wr.qty_loaded }} {{ wr.qty_unit_type.value }} | {{ "%.4f"|format(wr.cbm_total|float * (1 - wr_ratio)) }} m³</div></div>
+          <div class="detail-row"><div class="detail-label">Remaining</div><div class="detail-value" style="color:var(--success);font-weight:600">{{ wr.qty_available }} {{ wr.qty_unit_type.value }} | {{ "%.4f"|format(wr.cbm_total|float * wr_ratio) }} m³ | {{ "%.1f"|format(wr.kg_total|float * wr_ratio) }} kg</div></div>
+          {% if wr.notes %}<div class="detail-row"><div class="detail-label">Notes</div><div class="detail-value">{{ wr.notes }}</div></div>{% endif %}
+
+          <!-- Loaded in containers (view mode) -->
+          {% set view_lines = wr.load_lines.all() %}
+          {% if view_lines %}
+          <div style="margin-top:16px">
+            <div style="font-size:.78rem;font-weight:600;color:var(--text-2);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px"><i class="bi bi-box-seam me-1"></i>Loaded in Containers</div>
+            <div class="table-responsive"><table class="table table-hover mb-0" style="font-size:.82rem">
+              <thead><tr><th>Container</th><th>Status</th><th class="text-end">Qty</th><th class="text-end">CBM</th><th class="text-end">KG</th><th class="text-center"></th></tr></thead>
+              <tbody>
+                {% for l in view_lines %}
+                <tr>
+                  <td><strong style="color:var(--accent)">{{ l.container.container_number or 'TBD' }}</strong> <span style="font-size:.72rem;color:var(--text-3)">{{ l.container.container_type or '' }}</span></td>
+                  <td><span class="badge-status badge-{{ l.container.status.value|lower }}">{{ l.container.status.value }}</span></td>
+                  <td class="text-end">{{ l.qty_loaded }}</td>
+                  <td class="text-end">{{ "%.4f"|format(l.cbm_loaded|float) }}</td>
+                  <td class="text-end">{{ "%.1f"|format(l.kg_loaded|float) }}</td>
+                  <td class="text-center">
+                    {% if l.container.status.value not in ('ARRIVED', 'UNLOADED') %}
+                    <form method="post" action="{{ url_for('containers.remove_load_line', container_id=l.container_id, line_id=l.id) }}" style="display:inline" onsubmit="return confirm('Return {{ wr.wr_number }} from {{ l.container.container_number or 'TBD' }} to warehouse?')">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                      <input type="hidden" name="next" value="{{ url_for('dashboard') }}">
+                      <button type="submit" class="btn btn-sm btn-outline-danger" title="Return to warehouse"><i class="bi bi-arrow-return-left me-1"></i>Return</button>
+                    </form>
+                    {% else %}
+                    <span style="font-size:.7rem;color:var(--text-3)"><i class="bi bi-lock me-1"></i>Locked</span>
+                    {% endif %}
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table></div>
+          </div>
+          {% endif %}
+        </div>
+        <div class="modal-footer" style="border-top:1px solid var(--border);padding:12px 24px">
+          <a href="{{ url_for('wr.wr_detail', wr_id=wr.id) }}" class="btn btn-outline-primary btn-sm"><i class="bi bi-arrow-up-right me-1"></i>Full Page</a>
+          {% if wr.status.value == 'RECEIVED' and wr.load_lines.count() == 0 %}
+          <form method="post" action="{{ url_for('wr.wr_cancel', wr_id=wr.id) }}" style="display:inline" onsubmit="return confirm('Cancel {{ wr.wr_number }} and remove from warehouse? This cannot be undone.')">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="next" value="{{ url_for('dashboard') }}">
+            <button type="submit" class="btn btn-outline-danger btn-sm"><i class="bi bi-arrow-return-left me-1"></i>Return / Cancel</button>
+          </form>
+          {% endif %}
+          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+        </div>
+      </div>
+
+      <!-- EDIT MODE -->
+      <div id="wr{{ wr.id }}-edit" style="display:none">
+        <form method="post" action="{{ url_for('wr.wr_edit', wr_id=wr.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <div class="modal-body p-4">
+            {% if wr.qty_loaded > 0 %}
+            <div class="alert alert-info py-2" style="font-size:.82rem"><i class="bi bi-info-circle me-1"></i>{{ wr.qty_loaded }} {{ wr.qty_unit_type.value }} already loaded. Quantity cannot be reduced below this.</div>
+            {% endif %}
+            <div class="row g-3">
+              <div class="col-md-12">
+                <label class="form-label">Commodity <span style="color:var(--danger)">*</span></label>
+                <input type="text" name="commodity" class="form-control" value="{{ wr.commodity }}" required>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Quantity Total <span style="color:var(--danger)">*</span></label>
+                <input type="number" name="qty_total" class="form-control" value="{{ wr.qty_total }}" min="{{ wr.qty_loaded }}" required>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Unit Type <span style="color:var(--danger)">*</span></label>
+                <select name="qty_unit_type" class="form-select" required>
+                  {% for ut in ['PCS','CTNS','PKGS','PALLETS','ROLLS','BAGS','DRUMS','UNITS'] %}
+                  <option value="{{ ut }}" {% if wr.qty_unit_type.value == ut %}selected{% endif %}>{{ ut }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="col-md-4"></div>
+              <div class="col-md-6">
+                <label class="form-label">CBM Total <span style="color:var(--danger)">*</span></label>
+                <input type="number" name="cbm_total" class="form-control" step="0.0001" min="0.0001" value="{{ wr.cbm_total }}" required>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">KG Total <span style="color:var(--danger)">*</span></label>
+                <input type="number" name="kg_total" class="form-control" step="0.01" min="0.01" value="{{ wr.kg_total }}" required>
+              </div>
+              <div class="col-12">
+                <label class="form-label">Notes</label>
+                <input type="text" name="notes" class="form-control" value="{{ wr.notes or '' }}">
+              </div>
+            </div>
+          </div>
+          <div style="border-top:1px solid var(--border);padding:12px 24px;display:flex;justify-content:flex-end;gap:8px">
+            <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-check-lg me-1"></i>Save WR Info</button>
+          </div>
+        </form>
+
+        <!-- LOADED IN CONTAINERS -->
+        {% set wr_lines = wr.load_lines.all() %}
+        {% if wr_lines %}
+        <div style="border-top:2px solid var(--border);padding:16px 24px 8px">
+          <div style="font-size:.78rem;font-weight:600;color:var(--text-2);margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px">
+            <i class="bi bi-box-seam me-1"></i>Loaded in Containers — Edit / Return to Warehouse
+          </div>
+          <div class="table-responsive">
+            <table class="table mb-0" style="font-size:.82rem">
+              <thead><tr>
+                <th>Container</th><th>Status</th>
+                <th style="width:80px">Qty</th><th style="width:100px">CBM</th><th style="width:100px">KG</th>
+                <th style="width:120px" class="text-center">Actions</th>
+              </tr></thead>
+              <tbody>
+                {% for l in wr_lines %}
+                <tr>
+                  <td style="vertical-align:middle">
+                    <strong style="color:var(--accent)">{{ l.container.container_number or 'TBD' }}</strong>
+                    <span style="font-size:.72rem;color:var(--text-3)">{{ l.container.container_type or '' }}</span>
+                  </td>
+                  <td style="vertical-align:middle"><span class="badge-status badge-{{ l.container.status.value|lower }}">{{ l.container.status.value }}</span></td>
+                  <td>
+                    <form method="post" action="{{ url_for('containers.edit_load_line', container_id=l.container_id, line_id=l.id) }}" id="editWrLine{{ l.id }}" style="display:contents">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="next" value="{{ url_for('dashboard') }}">
+                    <input type="number" name="qty_loaded" class="form-control form-control-sm" value="{{ l.qty_loaded }}" min="1" style="width:70px">
+                  </td>
+                  <td><input type="number" name="cbm_loaded" class="form-control form-control-sm" step="0.0001" value="{{ l.cbm_loaded }}" min="0.0001" style="width:90px"></td>
+                  <td><input type="number" name="kg_loaded" class="form-control form-control-sm" step="0.01" value="{{ l.kg_loaded }}" min="0.01" style="width:90px"></td>
+                  <td class="text-center" style="vertical-align:middle">
+                    {% if l.container.status.value not in ('ARRIVED', 'UNLOADED') %}
+                    <button type="submit" class="btn btn-sm btn-outline-success" title="Save"><i class="bi bi-check-lg"></i></button>
+                    </form>
+                    <form method="post" action="{{ url_for('containers.remove_load_line', container_id=l.container_id, line_id=l.id) }}" style="display:inline" onsubmit="return confirm('Return {{ wr.wr_number }} from {{ l.container.container_number or 'TBD' }} to warehouse?')">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                      <input type="hidden" name="next" value="{{ url_for('dashboard') }}">
+                      <button type="submit" class="btn btn-sm btn-outline-danger" title="Return to warehouse"><i class="bi bi-arrow-return-left"></i></button>
+                    </form>
+                    {% else %}
+                    </form>
+                    <span style="font-size:.7rem;color:var(--text-3)">Locked</span>
+                    {% endif %}
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        {% endif %}
+
+        <div class="modal-footer" style="border-top:1px solid var(--border);padding:12px 24px">
+          <button type="button" class="btn btn-outline-secondary btn-sm" onclick="toggleMode('wr{{ wr.id }}','view',null)">Cancel</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endfor %}
+{% endfor %}
+
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<!--  CONTAINER DETAIL + EDIT MODALS                                   -->
+<!-- ══════════════════════════════════════════════════════════════════ -->
+{% set seen_containers = [] %}
+{% for code, data in stats.items() %}
+{% for c in data.containers %}
+{% if c.id not in seen_containers %}
+{% set _ = seen_containers.append(c.id) %}
+{% set max_cbm = 33 if c.container_type == '20' else (76 if c.container_type == '40HQ' else 67) %}
+{% set pct = ((c.total_cbm|float / max_cbm) * 100) if max_cbm > 0 else 0 %}
+{% set pct = [pct, 100]|min %}
+<div class="modal fade" id="modalCnt{{ c.id }}" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content" style="border:none;border-radius:14px;overflow:hidden">
+      <!-- Header -->
+      <div style="background:linear-gradient(135deg,#1e293b,#334155);padding:18px 24px;color:#fff">
+        <div class="d-flex justify-content-between align-items-center">
+          <div>
+            <h6 style="margin:0;font-weight:700;letter-spacing:1px"><i class="bi bi-box-seam me-2"></i>{{ c.container_number or 'TBD' }}</h6>
+            <div style="font-size:.78rem;opacity:.7;margin-top:2px">{{ c.container_type or '?' }} | {{ c.warehouse.name }} | {{ c.pol or '?' }} → {{ c.pod or '?' }}</div>
+          </div>
+          <div class="d-flex align-items-center gap-3">
+            {% if c.status.value not in ('ARRIVED', 'UNLOADED') %}
+            <div class="mode-toggle">
+              <button class="mt-btn active" onclick="toggleMode('cnt{{ c.id }}','view',this)"><i class="bi bi-eye me-1"></i>View</button>
+              <button class="mt-btn" onclick="toggleMode('cnt{{ c.id }}','edit',this)"><i class="bi bi-pencil me-1"></i>Edit</button>
+            </div>
+            {% endif %}
+            <span class="badge-status badge-{{ c.status.value|lower }}" style="font-size:.75rem">{{ c.status.value }}</span>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          </div>
+        </div>
+      </div>
+
+      <!-- VIEW MODE -->
+      <div id="cnt{{ c.id }}-view">
+        <div class="modal-body p-4">
+          <div style="margin-bottom:16px">
+            <div style="display:flex;justify-content:space-between;font-size:.75rem;color:var(--text-2);margin-bottom:4px">
+              <span>Capacity</span><span style="font-weight:600">{{ "%.1f"|format(c.total_cbm|float) }} / {{ max_cbm }} m³ ({{ "%.0f"|format(pct) }}%)</span>
+            </div>
+            <div class="capacity-bar"><div class="fill {% if pct < 60 %}low{% elif pct < 85 %}mid{% else %}high{% endif %}" style="width:{{ "%.1f"|format(pct) }}%"></div></div>
+          </div>
+          <div class="row g-2 mb-4">
+            <div class="col-3"><div class="modal-stat"><div class="ms-val">{{ c.load_lines.count() }}</div><div class="ms-lbl">Lines</div></div></div>
+            <div class="col-3"><div class="modal-stat"><div class="ms-val" style="color:var(--accent)">{{ "%.2f"|format(c.total_cbm|float) }}</div><div class="ms-lbl">CBM</div></div></div>
+            <div class="col-3"><div class="modal-stat"><div class="ms-val">{{ "%.0f"|format(c.total_kg|float) }}</div><div class="ms-lbl">KG</div></div></div>
+            <div class="col-3"><div class="modal-stat"><div class="ms-val">{{ "%.1f"|format(max_cbm - c.total_cbm|float) }}</div><div class="ms-lbl">Free m³</div></div></div>
+          </div>
+          <div class="detail-row"><div class="detail-label">Warehouse</div><div class="detail-value">{{ c.warehouse.name }} ({{ c.warehouse.code }})</div></div>
+          <div class="detail-row"><div class="detail-label">Type</div><div class="detail-value">{{ c.container_type or '-' }}</div></div>
+          <div class="detail-row"><div class="detail-label">Route</div><div class="detail-value">{{ c.pol or '?' }} → {{ c.pod or '?' }}</div></div>
+          {% if c.booking_number %}<div class="detail-row"><div class="detail-label">Booking</div><div class="detail-value">{{ c.booking_number }}</div></div>{% endif %}
+          {% if c.carrier %}<div class="detail-row"><div class="detail-label">Carrier</div><div class="detail-value">{{ c.carrier }}</div></div>{% endif %}
+          {% if c.forwarder %}<div class="detail-row"><div class="detail-label">Forwarder</div><div class="detail-value">{{ c.forwarder }}</div></div>{% endif %}
+          <div class="detail-row"><div class="detail-label">ETD</div><div class="detail-value">{{ c.etd or '-' }}</div></div>
+          <div class="detail-row"><div class="detail-label">ETA</div><div class="detail-value">{{ c.eta or '-' }}</div></div>
+          {% if c.notes %}<div class="detail-row"><div class="detail-label">Notes</div><div class="detail-value">{{ c.notes }}</div></div>{% endif %}
+          {% set lines = c.load_lines.all() %}
+          {% if lines %}
+          <div style="margin-top:16px">
+            <div style="font-size:.78rem;font-weight:600;color:var(--text-2);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px"><i class="bi bi-layers me-1"></i>Loaded Cargo</div>
+            <div class="table-responsive"><table class="table table-hover mb-0" style="font-size:.82rem">
+              <thead><tr><th>WR#</th><th>Customer</th><th>Commodity</th><th class="text-end">Qty</th><th class="text-end">CBM</th><th class="text-end">KG</th></tr></thead>
+              <tbody>
+                {% for l in lines %}
+                <tr>
+                  <td style="color:var(--accent);font-weight:600">{{ l.warehouse_receipt.wr_number }}</td>
+                  <td>{{ l.warehouse_receipt.customer.name }}</td>
+                  <td>{{ l.warehouse_receipt.commodity[:20] }}</td>
+                  <td class="text-end">{{ l.qty_loaded }}</td>
+                  <td class="text-end">{{ "%.4f"|format(l.cbm_loaded|float) }}</td>
+                  <td class="text-end">{{ "%.1f"|format(l.kg_loaded|float) }}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table></div>
+          </div>
+          {% endif %}
+        </div>
+        <div class="modal-footer" style="border-top:1px solid var(--border);padding:12px 24px">
+          <a href="{{ url_for('containers.container_detail', container_id=c.id) }}" class="btn btn-outline-primary btn-sm"><i class="bi bi-arrow-up-right me-1"></i>Full Page</a>
+          <a href="{{ url_for('containers.container_gallery', container_id=c.id) }}" class="btn btn-outline-info btn-sm"><i class="bi bi-camera me-1"></i>Gallery</a>
+          {% if c.is_editable %}<a href="{{ url_for('containers.container_loading', container_id=c.id) }}" class="btn btn-outline-warning btn-sm"><i class="bi bi-box-arrow-in-down me-1"></i>Loading</a>{% endif %}
+          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+        </div>
+      </div>
+
+      <!-- EDIT MODE -->
+      {% if c.status.value not in ('ARRIVED', 'UNLOADED') %}
+      <div id="cnt{{ c.id }}-edit" style="display:none">
+        <form method="post" action="{{ url_for('containers.container_edit', container_id=c.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <div class="modal-body p-4">
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label">Container Number</label>
+                <input type="text" name="container_number" class="form-control" value="{{ c.container_number or '' }}" style="text-transform:uppercase">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Container Type</label>
+                <select name="container_type" class="form-select">
+                  <option value="20" {% if c.container_type == '20' %}selected{% endif %}>20' Standard</option>
+                  <option value="40" {% if c.container_type == '40' %}selected{% endif %}>40' Standard</option>
+                  <option value="40HQ" {% if c.container_type == '40HQ' %}selected{% endif %}>40' High Cube</option>
+                </select>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Booking Number</label>
+                <input type="text" name="booking_number" class="form-control" value="{{ c.booking_number or '' }}">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Carrier</label>
+                <input type="text" name="carrier" class="form-control" value="{{ c.carrier or '' }}">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Forwarder</label>
+                <input type="text" name="forwarder" class="form-control" value="{{ c.forwarder or '' }}">
+              </div>
+              <div class="col-md-6">&nbsp;</div>
+              <div class="col-md-3">
+                <label class="form-label">POL</label>
+                <input type="text" name="pol" class="form-control" value="{{ c.pol or '' }}">
+              </div>
+              <div class="col-md-3">
+                <label class="form-label">POD</label>
+                <input type="text" name="pod" class="form-control" value="{{ c.pod or '' }}">
+              </div>
+              <div class="col-md-3">
+                <label class="form-label">ETD</label>
+                <input type="date" name="etd" class="form-control" value="{{ c.etd or '' }}">
+              </div>
+              <div class="col-md-3">
+                <label class="form-label">ETA</label>
+                <input type="date" name="eta" class="form-control" value="{{ c.eta or '' }}">
+              </div>
+              <div class="col-12">
+                <label class="form-label">Notes</label>
+                <input type="text" name="notes" class="form-control" value="{{ c.notes or '' }}">
+              </div>
+            </div>
+          </div>
+          <div style="border-top:1px solid var(--border);padding:12px 24px;display:flex;justify-content:flex-end;gap:8px">
+            <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-check-lg me-1"></i>Save Container Info</button>
+          </div>
+        </form>
+
+        <!-- LOAD LINES EDITING -->
+        {% set edit_lines = c.load_lines.all() %}
+        {% if edit_lines %}
+        <div style="border-top:2px solid var(--border);padding:16px 24px 8px">
+          <div style="font-size:.78rem;font-weight:600;color:var(--text-2);margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px">
+            <i class="bi bi-layers me-1"></i>Loaded Cargo — Edit / Remove
+          </div>
+          <div class="table-responsive">
+            <table class="table mb-0" style="font-size:.82rem">
+              <thead><tr>
+                <th>WR#</th><th>Customer</th><th>Commodity</th>
+                <th style="width:80px">Qty</th><th style="width:100px">CBM</th><th style="width:100px">KG</th>
+                <th style="width:120px" class="text-center">Actions</th>
+              </tr></thead>
+              <tbody>
+                {% for l in edit_lines %}
+                <tr>
+                  <td style="color:var(--accent);font-weight:600;vertical-align:middle">{{ l.warehouse_receipt.wr_number }}</td>
+                  <td style="vertical-align:middle">{{ l.warehouse_receipt.customer.name }}</td>
+                  <td style="vertical-align:middle">{{ l.warehouse_receipt.commodity[:18] }}</td>
+                  <td>
+                    <form method="post" action="{{ url_for('containers.edit_load_line', container_id=c.id, line_id=l.id) }}" id="editLine{{ l.id }}" style="display:contents">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="next" value="{{ url_for('dashboard') }}">
+                    <input type="number" name="qty_loaded" class="form-control form-control-sm" value="{{ l.qty_loaded }}" min="1" max="{{ l.warehouse_receipt.qty_available + l.qty_loaded }}" style="width:70px">
+                  </td>
+                  <td><input type="number" name="cbm_loaded" class="form-control form-control-sm" step="0.0001" value="{{ l.cbm_loaded }}" min="0.0001" style="width:90px"></td>
+                  <td><input type="number" name="kg_loaded" class="form-control form-control-sm" step="0.01" value="{{ l.kg_loaded }}" min="0.01" style="width:90px"></td>
+                  <td class="text-center" style="vertical-align:middle">
+                    <button type="submit" class="btn btn-sm btn-outline-success" title="Save"><i class="bi bi-check-lg"></i></button>
+                    </form>
+                    <form method="post" action="{{ url_for('containers.remove_load_line', container_id=c.id, line_id=l.id) }}" style="display:inline" onsubmit="return confirm('Remove {{ l.warehouse_receipt.wr_number }} from this container? Cargo returns to warehouse.')">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                      <input type="hidden" name="next" value="{{ url_for('dashboard') }}">
+                      <button type="submit" class="btn btn-sm btn-outline-danger" title="Remove / Return to warehouse"><i class="bi bi-arrow-return-left"></i></button>
+                    </form>
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        {% endif %}
+
+        <div class="modal-footer" style="border-top:1px solid var(--border);padding:12px 24px">
+          <button type="button" class="btn btn-outline-secondary btn-sm" onclick="toggleMode('cnt{{ c.id }}','view',null)">Cancel</button>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endfor %}
+{% endfor %}
+
+{# Active containers not already covered #}
+{% for c in active_containers %}
+{% if c.id not in seen_containers %}
+{% set _ = seen_containers.append(c.id) %}
+{% set max_cbm = 33 if c.container_type == '20' else (76 if c.container_type == '40HQ' else 67) %}
+{% set pct = ((c.total_cbm|float / max_cbm) * 100) if max_cbm > 0 else 0 %}
+{% set pct = [pct, 100]|min %}
+<div class="modal fade" id="modalCnt{{ c.id }}" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content" style="border:none;border-radius:14px;overflow:hidden">
+      <div style="background:linear-gradient(135deg,#1e293b,#334155);padding:18px 24px;color:#fff">
+        <div class="d-flex justify-content-between align-items-center">
+          <div>
+            <h6 style="margin:0;font-weight:700;letter-spacing:1px"><i class="bi bi-box-seam me-2"></i>{{ c.container_number or 'TBD' }}</h6>
+            <div style="font-size:.78rem;opacity:.7;margin-top:2px">{{ c.container_type or '?' }} | {{ c.warehouse.name }} | {{ c.pol or '?' }} → {{ c.pod or '?' }}</div>
+          </div>
+          <div class="d-flex align-items-center gap-3">
+            {% if c.status.value not in ('ARRIVED', 'UNLOADED') %}
+            <div class="mode-toggle">
+              <button class="mt-btn active" onclick="toggleMode('cnt{{ c.id }}','view',this)"><i class="bi bi-eye me-1"></i>View</button>
+              <button class="mt-btn" onclick="toggleMode('cnt{{ c.id }}','edit',this)"><i class="bi bi-pencil me-1"></i>Edit</button>
+            </div>
+            {% endif %}
+            <span class="badge-status badge-{{ c.status.value|lower }}" style="font-size:.75rem">{{ c.status.value }}</span>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          </div>
+        </div>
+      </div>
+      <div id="cnt{{ c.id }}-view">
+        <div class="modal-body p-4">
+          <div style="margin-bottom:16px">
+            <div style="display:flex;justify-content:space-between;font-size:.75rem;color:var(--text-2);margin-bottom:4px"><span>Capacity</span><span style="font-weight:600">{{ "%.1f"|format(c.total_cbm|float) }} / {{ max_cbm }} m³ ({{ "%.0f"|format(pct) }}%)</span></div>
+            <div class="capacity-bar"><div class="fill {% if pct < 60 %}low{% elif pct < 85 %}mid{% else %}high{% endif %}" style="width:{{ "%.1f"|format(pct) }}%"></div></div>
+          </div>
+          <div class="row g-2 mb-4">
+            <div class="col-3"><div class="modal-stat"><div class="ms-val">{{ c.load_lines.count() }}</div><div class="ms-lbl">Lines</div></div></div>
+            <div class="col-3"><div class="modal-stat"><div class="ms-val" style="color:var(--accent)">{{ "%.2f"|format(c.total_cbm|float) }}</div><div class="ms-lbl">CBM</div></div></div>
+            <div class="col-3"><div class="modal-stat"><div class="ms-val">{{ "%.0f"|format(c.total_kg|float) }}</div><div class="ms-lbl">KG</div></div></div>
+            <div class="col-3"><div class="modal-stat"><div class="ms-val">{{ "%.1f"|format(max_cbm - c.total_cbm|float) }}</div><div class="ms-lbl">Free m³</div></div></div>
+          </div>
+          <div class="detail-row"><div class="detail-label">Warehouse</div><div class="detail-value">{{ c.warehouse.name }}</div></div>
+          <div class="detail-row"><div class="detail-label">Route</div><div class="detail-value">{{ c.pol or '?' }} → {{ c.pod or '?' }}</div></div>
+          {% if c.booking_number %}<div class="detail-row"><div class="detail-label">Booking</div><div class="detail-value">{{ c.booking_number }}</div></div>{% endif %}
+          {% if c.carrier %}<div class="detail-row"><div class="detail-label">Carrier</div><div class="detail-value">{{ c.carrier }}</div></div>{% endif %}
+          {% if c.forwarder %}<div class="detail-row"><div class="detail-label">Forwarder</div><div class="detail-value">{{ c.forwarder }}</div></div>{% endif %}
+          <div class="detail-row"><div class="detail-label">ETD</div><div class="detail-value">{{ c.etd or '-' }}</div></div>
+          <div class="detail-row"><div class="detail-label">ETA</div><div class="detail-value">{{ c.eta or '-' }}</div></div>
+          {% if c.notes %}<div class="detail-row"><div class="detail-label">Notes</div><div class="detail-value">{{ c.notes }}</div></div>{% endif %}
+          {% set lines = c.load_lines.all() %}
+          {% if lines %}
+          <div style="margin-top:16px">
+            <div style="font-size:.78rem;font-weight:600;color:var(--text-2);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px"><i class="bi bi-layers me-1"></i>Loaded Cargo</div>
+            <div class="table-responsive"><table class="table table-hover mb-0" style="font-size:.82rem">
+              <thead><tr><th>WR#</th><th>Customer</th><th>Commodity</th><th class="text-end">Qty</th><th class="text-end">CBM</th><th class="text-end">KG</th></tr></thead>
+              <tbody>{% for l in lines %}<tr>
+                <td style="color:var(--accent);font-weight:600">{{ l.warehouse_receipt.wr_number }}</td>
+                <td>{{ l.warehouse_receipt.customer.name }}</td><td>{{ l.warehouse_receipt.commodity[:20] }}</td>
+                <td class="text-end">{{ l.qty_loaded }}</td><td class="text-end">{{ "%.4f"|format(l.cbm_loaded|float) }}</td><td class="text-end">{{ "%.1f"|format(l.kg_loaded|float) }}</td>
+              </tr>{% endfor %}</tbody>
+            </table></div>
+          </div>
+          {% endif %}
+        </div>
+        <div class="modal-footer" style="border-top:1px solid var(--border);padding:12px 24px">
+          <a href="{{ url_for('containers.container_detail', container_id=c.id) }}" class="btn btn-outline-primary btn-sm"><i class="bi bi-arrow-up-right me-1"></i>Full Page</a>
+          <a href="{{ url_for('containers.container_gallery', container_id=c.id) }}" class="btn btn-outline-info btn-sm"><i class="bi bi-camera me-1"></i>Gallery</a>
+          {% if c.is_editable %}<a href="{{ url_for('containers.container_loading', container_id=c.id) }}" class="btn btn-outline-warning btn-sm"><i class="bi bi-box-arrow-in-down me-1"></i>Loading</a>{% endif %}
+          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+        </div>
+      </div>
+      {% if c.status.value not in ('ARRIVED', 'UNLOADED') %}
+      <div id="cnt{{ c.id }}-edit" style="display:none">
+        <form method="post" action="{{ url_for('containers.container_edit', container_id=c.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <div class="modal-body p-4">
+            <div class="row g-3">
+              <div class="col-md-6"><label class="form-label">Container Number</label><input type="text" name="container_number" class="form-control" value="{{ c.container_number or '' }}" style="text-transform:uppercase"></div>
+              <div class="col-md-6"><label class="form-label">Container Type</label><select name="container_type" class="form-select"><option value="20" {% if c.container_type=='20' %}selected{% endif %}>20'</option><option value="40" {% if c.container_type=='40' %}selected{% endif %}>40'</option><option value="40HQ" {% if c.container_type=='40HQ' %}selected{% endif %}>40'HQ</option></select></div>
+              <div class="col-md-6"><label class="form-label">Booking Number</label><input type="text" name="booking_number" class="form-control" value="{{ c.booking_number or '' }}"></div>
+              <div class="col-md-6"><label class="form-label">Carrier</label><input type="text" name="carrier" class="form-control" value="{{ c.carrier or '' }}"></div>
+              <div class="col-md-6"><label class="form-label">Forwarder</label><input type="text" name="forwarder" class="form-control" value="{{ c.forwarder or '' }}"></div>
+              <div class="col-md-6">&nbsp;</div>
+              <div class="col-md-3"><label class="form-label">POL</label><input type="text" name="pol" class="form-control" value="{{ c.pol or '' }}"></div>
+              <div class="col-md-3"><label class="form-label">POD</label><input type="text" name="pod" class="form-control" value="{{ c.pod or '' }}"></div>
+              <div class="col-md-3"><label class="form-label">ETD</label><input type="date" name="etd" class="form-control" value="{{ c.etd or '' }}"></div>
+              <div class="col-md-3"><label class="form-label">ETA</label><input type="date" name="eta" class="form-control" value="{{ c.eta or '' }}"></div>
+              <div class="col-12"><label class="form-label">Notes</label><input type="text" name="notes" class="form-control" value="{{ c.notes or '' }}"></div>
+            </div>
+          </div>
+          <div style="border-top:1px solid var(--border);padding:12px 24px;display:flex;justify-content:flex-end;gap:8px">
+            <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-check-lg me-1"></i>Save Container Info</button>
+          </div>
+        </form>
+        {% set edit_lines = c.load_lines.all() %}
+        {% if edit_lines %}
+        <div style="border-top:2px solid var(--border);padding:16px 24px 8px">
+          <div style="font-size:.78rem;font-weight:600;color:var(--text-2);margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px">
+            <i class="bi bi-layers me-1"></i>Loaded Cargo — Edit / Remove
+          </div>
+          <div class="table-responsive">
+            <table class="table mb-0" style="font-size:.82rem">
+              <thead><tr>
+                <th>WR#</th><th>Customer</th><th>Commodity</th>
+                <th style="width:80px">Qty</th><th style="width:100px">CBM</th><th style="width:100px">KG</th>
+                <th style="width:120px" class="text-center">Actions</th>
+              </tr></thead>
+              <tbody>
+                {% for l in edit_lines %}
+                <tr>
+                  <td style="color:var(--accent);font-weight:600;vertical-align:middle">{{ l.warehouse_receipt.wr_number }}</td>
+                  <td style="vertical-align:middle">{{ l.warehouse_receipt.customer.name }}</td>
+                  <td style="vertical-align:middle">{{ l.warehouse_receipt.commodity[:18] }}</td>
+                  <td>
+                    <form method="post" action="{{ url_for('containers.edit_load_line', container_id=c.id, line_id=l.id) }}" id="editLine2{{ l.id }}" style="display:contents">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="next" value="{{ url_for('dashboard') }}">
+                    <input type="number" name="qty_loaded" class="form-control form-control-sm" value="{{ l.qty_loaded }}" min="1" max="{{ l.warehouse_receipt.qty_available + l.qty_loaded }}" style="width:70px">
+                  </td>
+                  <td><input type="number" name="cbm_loaded" class="form-control form-control-sm" step="0.0001" value="{{ l.cbm_loaded }}" min="0.0001" style="width:90px"></td>
+                  <td><input type="number" name="kg_loaded" class="form-control form-control-sm" step="0.01" value="{{ l.kg_loaded }}" min="0.01" style="width:90px"></td>
+                  <td class="text-center" style="vertical-align:middle">
+                    <button type="submit" class="btn btn-sm btn-outline-success" title="Save"><i class="bi bi-check-lg"></i></button>
+                    </form>
+                    <form method="post" action="{{ url_for('containers.remove_load_line', container_id=c.id, line_id=l.id) }}" style="display:inline" onsubmit="return confirm('Remove {{ l.warehouse_receipt.wr_number }} from this container? Cargo returns to warehouse.')">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                      <input type="hidden" name="next" value="{{ url_for('dashboard') }}">
+                      <button type="submit" class="btn btn-sm btn-outline-danger" title="Remove / Return to warehouse"><i class="bi bi-arrow-return-left"></i></button>
+                    </form>
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        {% endif %}
+        <div class="modal-footer" style="border-top:1px solid var(--border);padding:12px 24px">
+          <button type="button" class="btn btn-outline-secondary btn-sm" onclick="toggleMode('cnt{{ c.id }}','view',null)">Cancel</button>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endfor %}
+
+<!-- ════════════════════════════════════════════════════ -->
+<!-- MODAL: New WR                                       -->
+<!-- ════════════════════════════════════════════════════ -->
+<div class="modal fade" id="modalNewWR" tabindex="-1">
+  <div class="modal-dialog modal-lg"><div class="modal-content" style="border:none;border-radius:14px;overflow:hidden">
+    <div style="background:linear-gradient(135deg,#3b82f6,#2563eb);padding:18px 24px;color:#fff">
+      <div class="d-flex justify-content-between align-items-center">
+        <h6 style="margin:0;font-weight:700"><i class="bi bi-receipt-cutoff me-2"></i>New Warehouse Receipt</h6>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+    </div>
+    <form method="post" action="{{ url_for('wr.wr_create') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="modal-body p-4"><div class="row g-3">
+        <div class="col-md-6"><label class="form-label">Warehouse <span style="color:var(--danger)">*</span></label>
+          <select name="warehouse_id" id="wrModalWarehouse" class="form-select" required>{% for code, data in stats.items() %}<option value="{{ data.warehouse.id }}">{{ data.warehouse.name }} ({{ code }})</option>{% endfor %}</select></div>
+        <div class="col-md-6"><label class="form-label">Customer <span style="color:var(--danger)">*</span></label>
+          <select name="customer_id" class="form-select" required><option value="">— Select —</option>{% for c in customers %}<option value="{{ c.id }}">{{ c.name }} ({{ c.code }})</option>{% endfor %}</select></div>
+        <div class="col-md-6"><label class="form-label">Date Received <span style="color:var(--danger)">*</span></label><input type="date" name="date_received" class="form-control" value="{{ today }}" required></div>
+        <div class="col-md-6"><label class="form-label">Commodity <span style="color:var(--danger)">*</span></label><input type="text" name="commodity" class="form-control" placeholder="e.g. Electronics..." required></div>
+        <div class="col-md-4"><label class="form-label">Quantity <span style="color:var(--danger)">*</span></label><input type="number" name="qty_total" class="form-control" min="1" required></div>
+        <div class="col-md-4"><label class="form-label">Unit Type <span style="color:var(--danger)">*</span></label>
+          <select name="qty_unit_type" class="form-select" required><option value="PCS">PCS</option><option value="CTNS">CTNS</option><option value="PKGS">PKGS</option><option value="PALLETS">PALLETS</option><option value="ROLLS">ROLLS</option><option value="BAGS">BAGS</option><option value="DRUMS">DRUMS</option><option value="UNITS">UNITS</option></select></div>
+        <div class="col-md-4"></div>
+        <div class="col-md-6"><label class="form-label">CBM Total <span style="color:var(--danger)">*</span></label><input type="number" name="cbm_total" class="form-control" step="0.0001" min="0.0001" required></div>
+        <div class="col-md-6"><label class="form-label">KG Total <span style="color:var(--danger)">*</span></label><input type="number" name="kg_total" class="form-control" step="0.01" min="0.01" required></div>
+        <div class="col-12"><label class="form-label">Notes</label><input type="text" name="notes" class="form-control" placeholder="Optional..."></div>
+      </div></div>
+      <div class="modal-footer" style="border-top:1px solid var(--border);padding:16px 24px">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg me-1"></i>Create WR</button>
+      </div>
+    </form>
+  </div></div>
+</div>
+
+<!-- ════════════════════════════════════════════════════ -->
+<!-- MODAL: New Container                                -->
+<!-- ════════════════════════════════════════════════════ -->
+<div class="modal fade" id="modalNewContainer" tabindex="-1">
+  <div class="modal-dialog modal-lg"><div class="modal-content" style="border:none;border-radius:14px;overflow:hidden">
+    <div style="background:linear-gradient(135deg,#1e293b,#334155);padding:18px 24px;color:#fff">
+      <div class="d-flex justify-content-between align-items-center">
+        <h6 style="margin:0;font-weight:700"><i class="bi bi-box-seam me-2"></i>New Container</h6>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+    </div>
+    <form method="post" action="{{ url_for('containers.container_create') }}" enctype="multipart/form-data">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="next" value="{{ url_for('dashboard') }}">
+      <div class="modal-body p-4"><div class="row g-3">
+        <div class="col-md-6"><label class="form-label">Warehouse <span style="color:var(--danger)">*</span></label>
+          <select name="warehouse_id" id="cntModalWarehouse" class="form-select" required>{% for code, data in stats.items() %}<option value="{{ data.warehouse.id }}">{{ data.warehouse.name }} ({{ code }})</option>{% endfor %}</select></div>
+        <div class="col-md-6"><label class="form-label">Container Type <span style="color:var(--danger)">*</span></label>
+          <select name="container_type" class="form-select" required><option value="20">20' Standard</option><option value="40">40' Standard</option><option value="40HQ" selected>40' High Cube</option></select></div>
+        <div class="col-md-6"><label class="form-label">Container Number</label><input type="text" name="container_number" class="form-control" placeholder="MSCU-1234567-8" style="text-transform:uppercase"></div>
+        <div class="col-md-6"><label class="form-label">Booking Number</label><input type="text" name="booking_number" class="form-control" placeholder="e.g. BK2024001"></div>
+        <div class="col-md-6"><label class="form-label">Carrier / Naviera <span style="color:var(--danger)">*</span></label><input type="text" name="carrier" class="form-control" list="dlCarriers" placeholder="Start typing..." required></div>
+        <div class="col-md-6"><label class="form-label">Forwarder</label><input type="text" name="forwarder" class="form-control" list="dlForwarders" placeholder="Select or type new..."></div>
+        <div class="col-md-3"><label class="form-label">POL <span style="color:var(--danger)">*</span></label><input type="text" name="pol" class="form-control" list="dlPorts" placeholder="Port..." required></div>
+        <div class="col-md-3"><label class="form-label">POD <span style="color:var(--danger)">*</span></label><input type="text" name="pod" class="form-control" list="dlPorts" placeholder="Port..." required></div>
+        <div class="col-md-3"><label class="form-label">ETD</label><input type="date" name="etd" class="form-control"></div>
+        <div class="col-md-3"><label class="form-label">ETA</label><input type="date" name="eta" class="form-control"></div>
+        <div class="col-12"><label class="form-label">Notes</label><input type="text" name="notes" class="form-control" placeholder="Optional..."></div>
+        <!-- FILE UPLOAD -->
+        <div class="col-12" style="border-top:2px solid var(--border);padding-top:14px;margin-top:6px">
+          <div style="font-size:.78rem;font-weight:600;color:var(--text-2);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px"><i class="bi bi-cloud-arrow-up me-1"></i>Attach Photos / PDFs (optional)</div>
+          <input type="file" name="photos" class="form-control form-control-sm" multiple accept="image/*,.pdf,application/pdf">
+          <div style="font-size:.72rem;color:var(--text-3);margin-top:4px">JPG, PNG, GIF, WEBP, PDF — Max 16 MB</div>
+        </div>
+        <div class="col-12"><label class="form-label" style="font-size:.82rem">File Caption (optional)</label><input type="text" name="file_caption" class="form-control form-control-sm" placeholder="e.g. BL document, Loading photos..."></div>
+      </div></div>
+      <div class="modal-footer" style="border-top:1px solid var(--border);padding:16px 24px">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg me-1"></i>Create Container</button>
+      </div>
+    </form>
+  </div></div>
+</div>
+
+<!-- DATALISTS -->
+<datalist id="dlCarriers">
+  <option value="MSC - Mediterranean Shipping">
+  <option value="Maersk">
+  <option value="CMA CGM">
+  <option value="COSCO Shipping">
+  <option value="Hapag-Lloyd">
+  <option value="ONE - Ocean Network Express">
+  <option value="Evergreen">
+  <option value="Yang Ming">
+  <option value="HMM - Hyundai Merchant Marine">
+  <option value="ZIM">
+  <option value="PIL - Pacific International Lines">
+  <option value="Wan Hai Lines">
+  <option value="OOCL">
+  <option value="SM Line">
+  <option value="TS Lines">
+  <option value="Unifeeder">
+  <option value="X-Press Feeders">
+  <option value="Sea Lead Shipping">
+  <option value="KMTC">
+  <option value="Sinokor">
+</datalist>
+<datalist id="dlForwarders">
+  {% set seen_fwd = [] %}
+  {% for code, data in stats.items() %}{% for c in data.containers %}{% if c.forwarder and c.forwarder not in seen_fwd %}{% set _ = seen_fwd.append(c.forwarder) %}<option value="{{ c.forwarder }}">{% endif %}{% endfor %}{% endfor %}
+</datalist>
+<datalist id="dlPorts">
+  <option value="SHANGHAI (CNSHA)">
+  <option value="SHENZHEN / YANTIAN (CNSZX)">
+  <option value="NINGBO (CNNGB)">
+  <option value="GUANGZHOU / NANSHA (CNGZN)">
+  <option value="QINGDAO (CNQIN)">
+  <option value="TIANJIN / XINGANG (CNTXG)">
+  <option value="XIAMEN (CNXMN)">
+  <option value="HONG KONG (HKHKG)">
+  <option value="DALIAN (CNDLC)">
+  <option value="FUZHOU (CNFOC)">
+  <option value="LOS ANGELES (USLAX)">
+  <option value="LONG BEACH (USLGB)">
+  <option value="NEW YORK / NEWARK (USNYC)">
+  <option value="SAVANNAH (USSAV)">
+  <option value="HOUSTON (USHOU)">
+  <option value="CHARLESTON (USCHS)">
+  <option value="SEATTLE / TACOMA (USSEA)">
+  <option value="OAKLAND (USOAK)">
+  <option value="NORFOLK (USNFK)">
+  <option value="MIAMI (USMIA)">
+  <option value="SANTOS (BRSSZ)">
+  <option value="PARANAGUA (BRPNG)">
+  <option value="NAVEGANTES (BRNVT)">
+  <option value="ITAJAI (BRITJ)">
+  <option value="RIO GRANDE (BRRIG)">
+  <option value="SAO FRANCISCO DO SUL (BRSFS)">
+  <option value="MANAUS (BRMAO)">
+  <option value="SUAPE (BRSUA)">
+  <option value="SALVADOR (BRSSA)">
+  <option value="VITORIA (BRVIX)">
+  <option value="BUENOS AIRES (ARBUE)">
+  <option value="ROSARIO (ARROS)">
+  <option value="BAHIA BLANCA (ARBBQ)">
+  <option value="ZARATE (ARZAE)">
+  <option value="CAMPANA (ARCAM)">
+  <option value="MONTEVIDEO (UYMVD)">
+  <option value="NUEVA PALMIRA (UYNPA)">
+  <option value="FRAY BENTOS (UYFRB)">
+  <option value="ASUNCION (PYASU)">
+  <option value="VILLETA (PYVIL)">
+  <option value="ENCARNACION (PYENC)">
+  <option value="JEBEL ALI (AEJEA)">
+  <option value="DUBAI (AEDXB)">
+  <option value="ABU DHABI (AEAUH)">
+  <option value="SHARJAH (AESHJ)">
+  <option value="KHALIFA PORT (AEKHL)">
+</datalist>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function openWrModal(wid) {
+    document.getElementById('wrModalWarehouse').value = wid;
+    new bootstrap.Modal(document.getElementById('modalNewWR')).show();
+}
+function openContainerModal(wid) {
+    document.getElementById('cntModalWarehouse').value = wid;
+    new bootstrap.Modal(document.getElementById('modalNewContainer')).show();
+}
+function toggleMode(prefix, mode, btn) {
+    var viewEl = document.getElementById(prefix + '-view');
+    var editEl = document.getElementById(prefix + '-edit');
+    if (!viewEl || !editEl) return;
+    if (mode === 'edit') {
+        viewEl.style.display = 'none';
+        editEl.style.display = 'block';
+    } else {
+        viewEl.style.display = 'block';
+        editEl.style.display = 'none';
+    }
+    // Update toggle buttons
+    var header = viewEl.closest('.modal-content').querySelector('.mode-toggle');
+    if (header) {
+        var btns = header.querySelectorAll('.mt-btn');
+        btns.forEach(function(b) { b.classList.remove('active'); });
+        if (mode === 'view') btns[0].classList.add('active');
+        else btns[1].classList.add('active');
+    }
+}
+// Reset to view mode when modal closes
+document.querySelectorAll('.modal').forEach(function(m) {
+    m.addEventListener('hidden.bs.modal', function() {
+        var id = m.id;
+        var prefix = null;
+        if (id.startsWith('modalWR')) prefix = 'wr' + id.replace('modalWR','');
+        else if (id.startsWith('modalCnt')) prefix = 'cnt' + id.replace('modalCnt','');
+        if (prefix) toggleMode(prefix, 'view', null);
+    });
+});
+</script>
+{% endblock %}

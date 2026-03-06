@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Proration — {{ container.container_number or 'Container' }} — ConsolidaTrack{% endblock %}
+{% block content %}
+<h3><i class="bi bi-pie-chart"></i> Freight Proration — {{ container.container_number or 'TBD' }}</h3>
+<p class="text-muted">Total freight: <strong>{{ "%.2f"|format(total_freight) }} USD</strong> | Method: <strong>{{ method }}</strong></p>
+
+<div class="mb-3">
+  <a href="{{ url_for('finance.proration', container_id=container.id, method='CBM') }}" class="btn btn-sm {% if method == 'CBM' %}btn-primary{% else %}btn-outline-primary{% endif %}">By CBM</a>
+  <a href="{{ url_for('finance.proration', container_id=container.id, method='KG') }}" class="btn btn-sm {% if method == 'KG' %}btn-primary{% else %}btn-outline-primary{% endif %}">By KG</a>
+</div>
+
+<div class="card"><div class="card-body p-0">
+  <table class="table table-hover mb-0">
+    <thead class="table-light">
+      <tr><th>Customer</th><th class="text-end">CBM</th><th class="text-end">KG</th><th class="text-end">Share %</th><th class="text-end">Freight Amount</th></tr>
+    </thead>
+    <tbody>
+      {% for p in prorations %}
+      <tr>
+        <td><strong>{{ p.customer.name }}</strong></td>
+        <td class="text-end">{{ "%.4f"|format(p.cbm) }}</td>
+        <td class="text-end">{{ "%.2f"|format(p.kg) }}</td>
+        <td class="text-end">{{ "%.2f"|format(p.percentage) }}%</td>
+        <td class="text-end fw-bold">{{ "%.2f"|format(p.amount) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+    <tfoot class="table-light">
+      <tr>
+        <th>TOTAL</th>
+        <th class="text-end">{{ "%.4f"|format(container.total_cbm) }}</th>
+        <th class="text-end">{{ "%.2f"|format(container.total_kg) }}</th>
+        <th class="text-end">100%</th>
+        <th class="text-end">{{ "%.2f"|format(total_freight) }}</th>
+      </tr>
+    </tfoot>
+  </table>
+</div></div>
+{% endblock %}

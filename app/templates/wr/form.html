@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Edit' if wr else 'New' }} WR — ConsolidaTrack{% endblock %}
+{% block content %}
+<h3>{{ 'Edit ' + wr.wr_number if wr else 'New Warehouse Receipt' }}</h3>
+<div class="card col-md-8">
+  <div class="card-body">
+    <form method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="row">
+        <div class="col-md-6 mb-3">
+          <label class="form-label">Warehouse *</label>
+          <select name="warehouse_id" class="form-select" {% if wr %}disabled{% endif %} required>
+            {% for wh in warehouses %}
+            <option value="{{ wh.id }}" {% if wr and wr.warehouse_id == wh.id %}selected{% endif %}>{{ wh.code }} — {{ wh.name }}</option>
+            {% endfor %}
+          </select>
+          {% if wr %}<input type="hidden" name="warehouse_id" value="{{ wr.warehouse_id }}">{% endif %}
+        </div>
+        <div class="col-md-6 mb-3">
+          <label class="form-label">Customer *</label>
+          <select name="customer_id" class="form-select" {% if wr %}disabled{% endif %} required>
+            {% for c in customers %}
+            <option value="{{ c.id }}" {% if wr and wr.customer_id == c.id %}selected{% endif %}>{{ c.code }} — {{ c.name }}</option>
+            {% endfor %}
+          </select>
+          {% if wr %}<input type="hidden" name="customer_id" value="{{ wr.customer_id }}">{% endif %}
+        </div>
+      </div>
+      {% if not wr %}
+      <div class="mb-3">
+        <label class="form-label">Date Received *</label>
+        <input type="date" name="date_received" class="form-control" required>
+      </div>
+      {% endif %}
+      <div class="mb-3">
+        <label class="form-label">Commodity (1 type per WR) *</label>
+        <input type="text" name="commodity" class="form-control" value="{{ wr.commodity if wr else '' }}" required placeholder="e.g. Electronics - LED Panels">
+      </div>
+      <div class="row">
+        <div class="col-md-4 mb-3">
+          <label class="form-label">Quantity *</label>
+          <input type="number" name="qty_total" class="form-control" min="1" value="{{ wr.qty_total if wr else '' }}" required>
+        </div>
+        <div class="col-md-4 mb-3">
+          <label class="form-label">Unit Type *</label>
+          <select name="qty_unit_type" class="form-select" required>
+            {% for ut in ['CAJAS','UNIDADES','PALETAS'] %}
+            <option value="{{ ut }}" {% if wr and wr.qty_unit_type.value == ut %}selected{% endif %}>{{ ut }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+      <div class="row">
+        <div class="col-md-4 mb-3">
+          <label class="form-label">CBM Total (m³) *</label>
+          <input type="number" name="cbm_total" class="form-control" step="0.0001" min="0.0001" value="{{ wr.cbm_total if wr else '' }}" required>
+        </div>
+        <div class="col-md-4 mb-3">
+          <label class="form-label">KG Total *</label>
+          <input type="number" name="kg_total" class="form-control" step="0.01" min="0.01" value="{{ wr.kg_total if wr else '' }}" required>
+        </div>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Notes</label>
+        <textarea name="notes" class="form-control" rows="2">{{ wr.notes if wr else '' }}</textarea>
+      </div>
+      <button type="submit" class="btn btn-primary">{{ 'Update' if wr else 'Create WR' }}</button>
+      <a href="{{ url_for('wr.wr_list') }}" class="btn btn-secondary">Cancel</a>
+    </form>
+  </div>
+</div>
+{% endblock %}

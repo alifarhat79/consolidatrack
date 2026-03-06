@@ -1,0 +1,414 @@
+{% extends "base.html" %}
+{% block title %}Loading {{ container.container_number or 'Container' }}{% endblock %}
+{% block page_title %}Container Loading{% endblock %}
+{% block topbar_actions %}
+<a href="{{ url_for('containers.container_detail', container_id=container.id) }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left me-1"></i>Back to Detail</a>
+{% endblock %}
+
+{% block extra_head %}
+<style>
+  .loading-header{background:linear-gradient(135deg,#1e293b,#334155);border-radius:12px;padding:24px;color:#fff;margin-bottom:24px}
+  .loading-header .container-number{font-size:1.5rem;font-weight:700;letter-spacing:1px}
+  .header-stat{text-align:center;padding:0 20px}
+  .header-stat .value{font-size:1.4rem;font-weight:700}
+  .header-stat .label{font-size:.7rem;text-transform:uppercase;letter-spacing:1px;opacity:.6}
+  .header-divider{width:1px;background:rgba(255,255,255,.15);margin:0 8px}
+  .capacity-section{margin-top:16px}
+  .capacity-outer{height:16px;background:rgba(255,255,255,.1);border-radius:8px;overflow:hidden}
+  .capacity-inner{height:100%;border-radius:8px;transition:width .8s cubic-bezier(.4,0,.2,1)}
+  .capacity-inner.green{background:linear-gradient(90deg,#10b981,#34d399)}
+  .capacity-inner.yellow{background:linear-gradient(90deg,#f59e0b,#fbbf24)}
+  .capacity-inner.red{background:linear-gradient(90deg,#ef4444,#f87171)}
+  .capacity-labels{display:flex;justify-content:space-between;margin-top:6px;font-size:.72rem;opacity:.5}
+  .load-line-card{border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:8px;background:var(--surface);transition:all .2s;display:flex;align-items:center;gap:14px}
+  .load-line-card:hover{box-shadow:0 2px 8px rgba(0,0,0,.06);transform:translateY(-1px)}
+  .ll-wr{font-weight:700;color:var(--accent);font-size:.92rem;min-width:100px}
+  .ll-customer{color:var(--text-2);font-size:.82rem;min-width:90px}
+  .ll-commodity{color:var(--text-1);font-size:.85rem;flex:1}
+  .ll-metric{text-align:right;min-width:65px}
+  .ll-metric .val{font-weight:600;font-size:.9rem;color:var(--text-1)}
+  .ll-metric .unit{font-size:.68rem;color:var(--text-3);text-transform:uppercase}
+  .add-panel{position:sticky;top:80px}
+  .wr-option{padding:10px 14px;border:1px solid var(--border);border-radius:10px;margin-bottom:6px;cursor:pointer;transition:all .2s;background:var(--surface)}
+  .wr-option:hover{border-color:var(--accent);background:#f8fafc}
+  .wr-option.selected{border-color:var(--accent);background:#eff6ff;box-shadow:0 0 0 3px rgba(59,130,246,.12)}
+  .wr-option .wr-code{font-weight:700;color:var(--accent);font-size:.88rem}
+  .wr-option .wr-info{font-size:.78rem;color:var(--text-2)}
+  .wr-option .wr-avail{font-size:.78rem;color:var(--success);font-weight:600}
+  .qty-slider{width:100%;height:8px;-webkit-appearance:none;background:#e2e8f0;border-radius:4px;outline:none}
+  .qty-slider::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;border-radius:50%;background:var(--accent);cursor:pointer;box-shadow:0 2px 6px rgba(59,130,246,.3)}
+  .calc-preview{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin:12px 0}
+  .calc-box{background:#f8fafc;border:1px solid var(--border);border-radius:8px;padding:10px;text-align:center}
+  .calc-box .calc-val{font-size:1.1rem;font-weight:700;color:var(--text-1)}
+  .calc-box .calc-label{font-size:.68rem;color:var(--text-3);text-transform:uppercase;letter-spacing:.5px}
+  .remaining-card{border:1px solid #d1fae5;border-radius:10px;padding:12px 16px;margin-bottom:6px;background:#f0fdf4;display:flex;align-items:center;gap:14px}
+  .remaining-card .rem-wr{font-weight:600;color:#065f46;font-size:.88rem;min-width:100px}
+  .remaining-card .rem-metric{text-align:right;min-width:60px}
+  .remaining-card .rem-metric .val{font-weight:600;font-size:.85rem;color:#065f46}
+  .remaining-card .rem-metric .unit{font-size:.65rem;color:#6ee7b7;text-transform:uppercase}
+</style>
+{% endblock %}
+
+{% block content %}
+{% set max_cbm = 33 if container.container_type == '20' else (76 if container.container_type == '40HQ' else 67) %}
+{% set pct = ((container.total_cbm|float / max_cbm) * 100) if max_cbm > 0 else 0 %}
+{% set pct = [pct, 100]|min %}
+
+<!-- Container Header -->
+<div class="loading-header">
+  <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
+    <div>
+      <div class="container-number"><i class="bi bi-box-seam me-2"></i>{{ container.container_number or 'TBD' }}</div>
+      <div style="font-size:.82rem;opacity:.6;margin-top:2px">
+        {{ container.container_type or '?' }} | {{ container.warehouse.code }} |
+        {{ container.pol or '?' }} &rarr; {{ container.pod or '?' }}
+        {% if container.etd %} | ETD: {{ container.etd }}{% endif %}
+      </div>
+    </div>
+    <div class="d-flex align-items-center">
+      <div class="header-stat"><div class="value">{{ load_lines|length }}</div><div class="label">Lines</div></div>
+      <div class="header-divider" style="height:40px"></div>
+      <div class="header-stat"><div class="value">{{ "%.2f"|format(container.total_cbm|float) }}</div><div class="label">Total CBM</div></div>
+      <div class="header-divider" style="height:40px"></div>
+      <div class="header-stat"><div class="value">{{ "%.0f"|format(container.total_kg|float) }}</div><div class="label">Total KG</div></div>
+      <div class="header-divider" style="height:40px"></div>
+      <div class="header-stat"><div class="value">{{ max_cbm }}</div><div class="label">Max CBM</div></div>
+    </div>
+  </div>
+  <div class="capacity-section">
+    <div class="capacity-outer">
+      <div class="capacity-inner {% if pct < 60 %}green{% elif pct < 85 %}yellow{% else %}red{% endif %}" style="width:{{ "%.1f"|format(pct) }}%"></div>
+    </div>
+    <div class="capacity-labels">
+      <span>0 m&sup3;</span>
+      <span style="font-weight:600;opacity:1">{{ "%.1f"|format(pct) }}% loaded</span>
+      <span>{{ max_cbm }} m&sup3;</span>
+    </div>
+  </div>
+</div>
+
+<div class="row">
+  <!-- LEFT: Loaded Cargo -->
+  <div class="col-lg-7 mb-4">
+    <div class="d-flex align-items-center justify-content-between mb-3">
+      <h6 style="font-weight:600;color:var(--text-1);margin:0"><i class="bi bi-layers me-2"></i>Loaded Cargo ({{ load_lines|length }})</h6>
+      {% if load_lines %}
+      <form method="post" action="{{ url_for('containers.close_container', container_id=container.id) }}" class="d-inline">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="btn btn-sm btn-danger" onclick="return confirm('Close container? No further modifications allowed.')">
+          <i class="bi bi-lock me-1"></i>Close Container
+        </button>
+      </form>
+      {% endif %}
+    </div>
+
+    {% for line in load_lines %}
+    <div class="load-line-card">
+      <div class="ll-wr">{{ line.warehouse_receipt.wr_number }}</div>
+      <div class="ll-customer">{{ line.warehouse_receipt.customer.name }}</div>
+      <div class="ll-commodity">{{ line.warehouse_receipt.commodity[:35] }}</div>
+      <div class="ll-metric"><div class="val">{{ line.qty_loaded }}</div><div class="unit">{{ line.warehouse_receipt.qty_unit_type.value }}</div></div>
+      <div class="ll-metric"><div class="val">{{ "%.4f"|format(line.cbm_loaded|float) }}</div><div class="unit">CBM</div></div>
+      <div class="ll-metric"><div class="val">{{ "%.1f"|format(line.kg_loaded|float) }}</div><div class="unit">KG</div></div>
+      <form method="post" action="{{ url_for('containers.remove_load_line', container_id=container.id, line_id=line.id) }}" class="d-inline">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="btn btn-sm btn-outline-danger" title="Remove" onclick="return confirm('Remove?')"><i class="bi bi-x-lg"></i></button>
+      </form>
+    </div>
+    {% else %}
+    <div class="empty-state" style="background:var(--surface);border-radius:12px;border:2px dashed var(--border)">
+      <i class="bi bi-box-arrow-in-down"></i>
+      <div style="font-weight:600;color:var(--text-2)">No cargo loaded yet</div>
+      <div style="font-size:.82rem;color:var(--text-3)">Select a WR from the right panel to start loading</div>
+    </div>
+    {% endfor %}
+
+    {% if load_lines %}
+    <div style="background:#f8fafc;border-radius:10px;padding:14px 16px;margin-top:12px;display:flex;align-items:center;gap:14px;border:1px solid var(--border)">
+      <div style="font-weight:700;color:var(--text-1);flex:1"><i class="bi bi-calculator me-2"></i>TOTALS</div>
+      <div class="ll-metric"><div class="val" style="color:var(--accent)">{{ "%.4f"|format(container.total_cbm|float) }}</div><div class="unit">CBM</div></div>
+      <div class="ll-metric"><div class="val">{{ "%.1f"|format(container.total_kg|float) }}</div><div class="unit">KG</div></div>
+      <div style="width:38px"></div>
+    </div>
+    {% endif %}
+
+    <!-- Remaining in Warehouse -->
+    {% if available_wrs %}
+    <h6 style="font-weight:600;color:var(--text-1);margin:20px 0 12px"><i class="bi bi-boxes me-2"></i>Remaining in Warehouse ({{ container.warehouse.code }})</h6>
+    {% for wr in available_wrs %}
+    {% set wr_ratio = wr.qty_available / wr.qty_total if wr.qty_total > 0 else 0 %}
+    <div class="remaining-card">
+      <div class="rem-wr">{{ wr.wr_number }}</div>
+      <div style="color:#047857;font-size:.82rem;flex:1">{{ wr.customer.name }} | {{ wr.commodity[:30] }}</div>
+      <div class="rem-metric"><div class="val">{{ wr.qty_available }}</div><div class="unit">{{ wr.qty_unit_type.value }}</div></div>
+      <div class="rem-metric"><div class="val">{{ "%.2f"|format(wr.cbm_total|float * wr_ratio) }}</div><div class="unit">CBM</div></div>
+      <div class="rem-metric"><div class="val">{{ "%.0f"|format(wr.kg_total|float * wr_ratio) }}</div><div class="unit">KG</div></div>
+    </div>
+    {% endfor %}
+    {% endif %}
+  </div>
+
+  <!-- RIGHT: Add Cargo Panel -->
+  <div class="col-lg-5">
+    <div class="card add-panel">
+      <div class="card-header py-3 px-4" style="background:linear-gradient(135deg,#3b82f6,#2563eb);color:#fff;border-radius:12px 12px 0 0;border:none">
+        <i class="bi bi-plus-circle me-2"></i><strong>Add Cargo to Container</strong>
+      </div>
+      <div class="card-body p-4">
+        {% if available_wrs %}
+        <form method="post" action="{{ url_for('containers.add_load_line', container_id=container.id) }}" id="loadForm">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="wr_id" id="wrIdInput" value="">
+          <input type="hidden" name="load_type" id="loadTypeInput" value="full">
+          <input type="hidden" name="qty_loaded" id="qtyLoadedInput" value="">
+
+          <label class="form-label mb-2"><i class="bi bi-receipt-cutoff me-1"></i>Select Warehouse Receipt</label>
+          <div style="max-height:240px;overflow-y:auto;margin-bottom:16px;padding-right:4px" id="wrList">
+            {% for wr in available_wrs %}
+            {% set wr_ratio = wr.qty_available / wr.qty_total if wr.qty_total > 0 else 0 %}
+            <div class="wr-option"
+                 data-id="{{ wr.id }}"
+                 data-qty="{{ wr.qty_available }}"
+                 data-cbm="{{ wr.cbm_total }}"
+                 data-kg="{{ wr.kg_total }}"
+                 data-qty-total="{{ wr.qty_total }}"
+                 data-unit="{{ wr.qty_unit_type.value }}"
+                 data-wrnum="{{ wr.wr_number }}"
+                 data-customer="{{ wr.customer.name }}"
+                 data-commodity="{{ wr.commodity[:30] }}">
+              <div class="d-flex justify-content-between align-items-center">
+                <div>
+                  <div class="wr-code">{{ wr.wr_number }}</div>
+                  <div class="wr-info">{{ wr.customer.name }} | {{ wr.commodity[:30] }}</div>
+                </div>
+                <div class="text-end">
+                  <div class="wr-avail">{{ wr.qty_available }} {{ wr.qty_unit_type.value }}</div>
+                  <div style="font-size:.72rem;color:var(--text-3)">{{ "%.2f"|format(wr.cbm_total|float * wr_ratio) }} m&sup3; | {{ "%.0f"|format(wr.kg_total|float * wr_ratio) }} kg</div>
+                </div>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+
+          <!-- Config appears after selecting WR -->
+          <div id="loadConfig" style="display:none">
+            <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:12px;margin-bottom:16px">
+              <div class="d-flex justify-content-between align-items-center">
+                <div>
+                  <strong style="color:var(--accent)" id="selWrNum"></strong>
+                  <div style="font-size:.78rem;color:var(--text-2)" id="selWrDesc"></div>
+                </div>
+                <button type="button" class="btn btn-sm btn-outline-secondary" id="btnClear"><i class="bi bi-x"></i></button>
+              </div>
+            </div>
+
+            <div class="d-flex gap-2 mb-3">
+              <button type="button" class="btn btn-sm flex-fill" id="btnFull"
+                      style="border:2px solid var(--accent);color:var(--accent);font-weight:600;background:#eff6ff">
+                <i class="bi bi-box-fill me-1"></i>Full Load
+              </button>
+              <button type="button" class="btn btn-sm btn-outline-secondary flex-fill" id="btnPartial">
+                <i class="bi bi-pie-chart me-1"></i>Partial Load
+              </button>
+            </div>
+
+            <div id="partialControls" style="display:none">
+              <label class="form-label">Quantity to Load</label>
+              <div class="d-flex align-items-center gap-3 mb-2">
+                <input type="range" class="qty-slider flex-grow-1" id="qtySlider" min="1" max="100" value="50">
+                <input type="number" class="form-control" id="qtyManual" style="width:90px;text-align:center;font-weight:700;font-size:1.1rem" min="1">
+              </div>
+              <div class="d-flex justify-content-between">
+                <small style="color:var(--text-3)">Min: 1</small>
+                <small style="color:var(--text-3)">Max: <span id="qtyMaxLabel">0</span> <span id="qtyUnitLabel"></span></small>
+              </div>
+            </div>
+
+            <div class="calc-preview">
+              <div class="calc-box"><div class="calc-val" id="prevQty">-</div><div class="calc-label">Quantity</div></div>
+              <div class="calc-box" style="border-color:#bfdbfe"><div class="calc-val" id="prevCbm" style="color:var(--accent)">-</div><div class="calc-label">CBM</div></div>
+              <div class="calc-box"><div class="calc-val" id="prevKg">-</div><div class="calc-label">KG</div></div>
+            </div>
+
+            <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:10px;margin-bottom:12px" id="afterPreview">
+              <div style="font-size:.72rem;text-transform:uppercase;letter-spacing:.5px;color:#059669;font-weight:600;margin-bottom:4px">
+                <i class="bi bi-arrow-return-right me-1"></i>Remaining after load
+              </div>
+              <div class="d-flex gap-3">
+                <div><span style="font-weight:700;color:#065f46" id="remQty">-</span> <small style="color:#6ee7b7" id="remUnit"></small></div>
+                <div><span style="font-weight:700;color:#065f46" id="remCbm">-</span> <small style="color:#6ee7b7">m&sup3;</small></div>
+                <div><span style="font-weight:700;color:#065f46" id="remKg">-</span> <small style="color:#6ee7b7">kg</small></div>
+              </div>
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label">Notes <span style="color:var(--text-3);font-weight:400">(optional)</span></label>
+              <input type="text" name="notes" class="form-control" placeholder="e.g. Fragile, stack on top...">
+            </div>
+
+            <button type="submit" class="btn btn-primary w-100 py-2" style="font-weight:600;font-size:.95rem">
+              <i class="bi bi-plus-lg me-2"></i>Add to Container
+            </button>
+          </div>
+        </form>
+        {% else %}
+        <div class="empty-state py-4">
+          <i class="bi bi-inbox" style="font-size:2.5rem"></i>
+          <div style="font-weight:600;color:var(--text-2);margin-top:8px">No Available WRs</div>
+          <div style="font-size:.82rem;color:var(--text-3)">All warehouse receipts in {{ container.warehouse.code }} are loaded or unavailable</div>
+          <a href="{{ url_for('wr.wr_create') }}" class="btn btn-sm btn-outline-primary mt-3"><i class="bi bi-plus me-1"></i>Create New WR</a>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+(function() {
+    var sel = null;
+    var wrIdInput = document.getElementById('wrIdInput');
+    var loadConfig = document.getElementById('loadConfig');
+    var partialControls = document.getElementById('partialControls');
+    var qtySlider = document.getElementById('qtySlider');
+    var qtyManual = document.getElementById('qtyManual');
+    var qtyLoadedInput = document.getElementById('qtyLoadedInput');
+    var loadTypeInput = document.getElementById('loadTypeInput');
+    var btnFull = document.getElementById('btnFull');
+    var btnPartial = document.getElementById('btnPartial');
+    var btnClear = document.getElementById('btnClear');
+
+    if (!wrIdInput) return;
+
+    // Click on WR option
+    var wrOptions = document.querySelectorAll('.wr-option');
+    for (var i = 0; i < wrOptions.length; i++) {
+        wrOptions[i].addEventListener('click', function() {
+            for (var j = 0; j < wrOptions.length; j++) { wrOptions[j].classList.remove('selected'); }
+            this.classList.add('selected');
+
+            var qtyAvail = parseInt(this.getAttribute('data-qty'));
+            var qtyTotal = parseInt(this.getAttribute('data-qty-total'));
+
+            sel = {
+                id: this.getAttribute('data-id'),
+                qtyAvail: qtyAvail,
+                cbmTotal: parseFloat(this.getAttribute('data-cbm')),
+                kgTotal: parseFloat(this.getAttribute('data-kg')),
+                qtyTotal: qtyTotal,
+                unit: this.getAttribute('data-unit')
+            };
+
+            wrIdInput.value = sel.id;
+            document.getElementById('selWrNum').textContent = this.getAttribute('data-wrnum');
+            document.getElementById('selWrDesc').textContent = this.getAttribute('data-customer') + ' | ' + this.getAttribute('data-commodity');
+
+            qtySlider.max = sel.qtyAvail;
+            qtySlider.value = sel.qtyAvail;
+            qtyManual.max = sel.qtyAvail;
+            qtyManual.value = sel.qtyAvail;
+            document.getElementById('qtyMaxLabel').textContent = sel.qtyAvail;
+            document.getElementById('qtyUnitLabel').textContent = sel.unit;
+
+            loadConfig.style.display = 'block';
+            setLoadType('full');
+        });
+    }
+
+    // Clear selection
+    btnClear.addEventListener('click', function() {
+        for (var j = 0; j < wrOptions.length; j++) { wrOptions[j].classList.remove('selected'); }
+        sel = null;
+        wrIdInput.value = '';
+        loadConfig.style.display = 'none';
+    });
+
+    // Full / Partial buttons
+    btnFull.addEventListener('click', function() { setLoadType('full'); });
+    btnPartial.addEventListener('click', function() { setLoadType('partial'); });
+
+    function setLoadType(type) {
+        loadTypeInput.value = type;
+        if (type === 'full') {
+            btnFull.style.cssText = 'border:2px solid var(--accent);color:var(--accent);font-weight:600;background:#eff6ff';
+            btnFull.className = 'btn btn-sm flex-fill';
+            btnPartial.style.cssText = '';
+            btnPartial.className = 'btn btn-sm btn-outline-secondary flex-fill';
+            partialControls.style.display = 'none';
+            if (sel) {
+                qtySlider.value = sel.qtyAvail;
+                qtyManual.value = sel.qtyAvail;
+            }
+        } else {
+            btnPartial.style.cssText = 'border:2px solid var(--accent);color:var(--accent);font-weight:600;background:#eff6ff';
+            btnPartial.className = 'btn btn-sm flex-fill';
+            btnFull.style.cssText = '';
+            btnFull.className = 'btn btn-sm btn-outline-secondary flex-fill';
+            partialControls.style.display = 'block';
+            if (sel) {
+                var half = Math.ceil(sel.qtyAvail / 2);
+                qtySlider.value = half;
+                qtyManual.value = half;
+            }
+        }
+        updateCalc();
+    }
+
+    // Slider and manual input sync
+    qtySlider.addEventListener('input', function() {
+        qtyManual.value = this.value;
+        updateCalc();
+    });
+    qtyManual.addEventListener('input', function() {
+        var v = parseInt(this.value) || 0;
+        if (sel) {
+            if (v > sel.qtyAvail) v = sel.qtyAvail;
+            if (v < 1) v = 1;
+        }
+        qtySlider.value = v;
+        updateCalc();
+    });
+
+    function updateCalc() {
+        if (!sel) return;
+        var qty = (loadTypeInput.value === 'full') ? sel.qtyAvail : (parseInt(qtySlider.value) || 0);
+        var ratio = qty / sel.qtyTotal;
+        var cbm = sel.cbmTotal * ratio;
+        var kg = sel.kgTotal * ratio;
+
+        document.getElementById('prevQty').textContent = qty + ' ' + sel.unit;
+        document.getElementById('prevCbm').textContent = cbm.toFixed(4) + ' m\u00B3';
+        document.getElementById('prevKg').textContent = kg.toFixed(1) + ' kg';
+
+        var remQty = sel.qtyAvail - qty;
+        var remRatio = (sel.qtyTotal > 0) ? (remQty / sel.qtyTotal) : 0;
+        document.getElementById('remQty').textContent = remQty;
+        document.getElementById('remUnit').textContent = sel.unit;
+        document.getElementById('remCbm').textContent = (sel.cbmTotal * remRatio).toFixed(2);
+        document.getElementById('remKg').textContent = (sel.kgTotal * remRatio).toFixed(0);
+
+        var ap = document.getElementById('afterPreview');
+        if (remQty === 0) {
+            ap.style.background = '#fef2f2';
+            ap.style.borderColor = '#fecaca';
+        } else {
+            ap.style.background = '#f0fdf4';
+            ap.style.borderColor = '#bbf7d0';
+        }
+
+        qtyLoadedInput.value = qty;
+    }
+
+    // Form submit validation
+    document.getElementById('loadForm').addEventListener('submit', function(e) {
+        if (!sel) { e.preventDefault(); alert('Please select a Warehouse Receipt first.'); return; }
+        if (loadTypeInput.value === 'full') { qtyLoadedInput.value = sel.qtyAvail; }
+        var qty = parseInt(qtyLoadedInput.value);
+        if (!qty || qty <= 0) { e.preventDefault(); alert('Invalid quantity.'); return; }
+        if (qty > sel.qtyAvail) { e.preventDefault(); alert('Cannot load more than available (' + sel.qtyAvail + ').'); return; }
+    });
+})();
+</script>
+{% endblock %}

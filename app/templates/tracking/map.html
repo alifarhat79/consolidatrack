@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% block title %}Tracking {{ container.container_number or '' }} — ConsolidaTrack{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+  #map { height: 450px; border-radius: 8px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h3>
+    <i class="bi bi-geo-alt"></i> Tracking — {{ container.container_number or 'TBD' }}
+    <span class="badge bg-{% if container.status == ContainerStatus.SHIPPED %}primary{% elif container.status == ContainerStatus.ARRIVED %}success{% else %}secondary{% endif %}">
+      {{ container.status.value }}
+    </span>
+  </h3>
+  <div>
+    <span class="me-3">ETA: <strong>{{ container.eta or 'N/A' }}</strong></span>
+    <form method="post" action="{{ url_for('tracking.refresh_tracking', container_id=container.id) }}" class="d-inline">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="btn btn-outline-primary btn-sm"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
+    </form>
+    <a href="{{ url_for('reports.tracking_csv', container_id=container.id) }}" class="btn btn-outline-success btn-sm"><i class="bi bi-download"></i> CSV</a>
+  </div>
+</div>
+
+<!-- Map -->
+<div class="card mb-3">
+  <div class="card-body p-2">
+    <div id="map"></div>
+  </div>
+</div>
+
+<!-- Timeline -->
+<div class="card">
+  <div class="card-header"><strong>Event Timeline</strong></div>
+  <div class="card-body">
+    {% if points %}
+    {% for p in points %}
+    <div class="d-flex mb-3">
+      <div class="me-3 text-center" style="min-width: 80px">
+        <small class="text-muted">{{ p.timestamp.strftime('%b %d') if p.timestamp else '' }}</small><br>
+        <small class="text-muted">{{ p.timestamp.strftime('%H:%M') if p.timestamp else '' }}</small>
+      </div>
+      <div>
+        <i class="bi bi-{% if p.latitude %}geo-alt-fill text-primary{% else %}clock text-muted{% endif %} me-1"></i>
+        <strong>{{ p.event_description or 'Position update' }}</strong>
+        {% if p.location_name %}<br><small class="text-muted">{{ p.location_name }}</small>{% endif %}
+        {% if p.latitude %}<br><small class="text-muted">{{ p.latitude }}°, {{ p.longitude }}°</small>{% endif %}
+      </div>
+    </div>
+    {% endfor %}
+    {% else %}
+    <p class="text-muted mb-0">No tracking data available yet. Click "Refresh" to fetch from SeaRates.</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const trackData = {{ track_data | safe }};
+    const map = L.map('map').setView([20, 0], 2);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap'
+    }).addTo(map);
+
+    // Filter points with coordinates
+    const coordPoints = trackData.filter(p => p.lat !== null && p.lon !== null);
+
+    if (coordPoints.length > 0) {
+        // Draw polyline route
+        const latlngs = coordPoints.map(p => [p.lat, p.lon]);
+        L.polyline(latlngs, { color: '#0d6efd', weight: 3, opacity: 0.7 }).addTo(map);
+
+        // Add markers
+        coordPoints.forEach((p, i) => {
+            const isLast = (i === coordPoints.length - 1);
+            const marker = L.circleMarker([p.lat, p.lon], {
+                radius: isLast ? 8 : 4,
+                color: isLast ? '#dc3545' : '#0d6efd',
+                fillColor: isLast ? '#dc3545' : '#0d6efd',
+                fillOpacity: isLast ? 1 : 0.6,
+            }).addTo(map);
+
+            let popup = `<strong>${p.description || 'Position'}</strong>`;
+            if (p.location) popup += `<br>${p.location}`;
+            if (p.timestamp) popup += `<br><small>${new Date(p.timestamp).toLocaleString()}</small>`;
+            marker.bindPopup(popup);
+
+            if (isLast) marker.openPopup();
+        });
+
+        // Fit bounds
+        map.fitBounds(latlngs, { padding: [50, 50] });
+    } else {
+        // No coordinates — show world view with message
+        L.popup()
+            .setLatLng([20, 0])
+            .setContent('No coordinates available yet')
+            .openOn(map);
+    }
+});
+</script>
+{% endblock %}

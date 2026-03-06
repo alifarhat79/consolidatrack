@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Stock Report — ConsolidaTrack{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h3><i class="bi bi-clipboard-data"></i> Available Stock</h3>
+  <a href="{{ url_for('reports.stock_csv', **filters) }}" class="btn btn-outline-success"><i class="bi bi-download"></i> Export CSV</a>
+</div>
+<div class="card mb-3"><div class="card-body">
+  <form method="get" class="row g-2 align-items-end">
+    <div class="col-auto">
+      <select name="warehouse_id" class="form-select form-select-sm">
+        <option value="">All Warehouses</option>
+        {% for wh in warehouses %}
+        <option value="{{ wh.id }}" {% if filters.get('warehouse_id')|string == wh.id|string %}selected{% endif %}>{{ wh.code }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-auto"><button class="btn btn-sm btn-primary">Filter</button></div>
+  </form>
+</div></div>
+<div class="card"><div class="card-body p-0">
+  <table class="table table-hover mb-0">
+    <thead class="table-light">
+      <tr><th>WR#</th><th>WH</th><th>Customer</th><th>Commodity</th><th class="text-end">Qty Avail</th><th class="text-end">CBM Avail</th><th class="text-end">KG Avail</th></tr>
+    </thead>
+    <tbody>
+      {% for wr in wrs %}
+      <tr>
+        <td><a href="{{ url_for('wr.wr_detail', wr_id=wr.id) }}">{{ wr.wr_number }}</a></td>
+        <td>{{ wr.warehouse.code }}</td>
+        <td>{{ wr.customer.name }}</td>
+        <td>{{ wr.commodity[:40] }}</td>
+        <td class="text-end">{{ wr.qty_available }}</td>
+        <td class="text-end">{{ "%.4f"|format(wr.cbm_available) }}</td>
+        <td class="text-end">{{ "%.2f"|format(wr.kg_available) }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7" class="text-center text-muted py-4">No available stock</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div></div>
+{% endblock %}
